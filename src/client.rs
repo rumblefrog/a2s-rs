@@ -122,18 +122,18 @@ impl A2SClient {
                     return Err(Error::InvalidBz2Size);
                 }
 
-                let mut decompressor = BzDecoder::new(aggregation.deref());
-
                 let mut decompressed = Vec::with_capacity(total_packets * self.max_size);
 
-                decompressor.read(&mut decompressed)?;
+                BzDecoder::new(aggregation.deref()).read(&mut decompressed)?;
 
                 if crc32::checksum_ieee(&decompressed) != checksum as u32 {
                     return Err(Error::CheckSumMismatch);
                 }
 
                 Ok(decompressed)
-            } else {
+            } 
+            
+            else {
                 Ok(aggregation)
             }
         }
