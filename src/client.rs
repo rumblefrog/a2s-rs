@@ -12,15 +12,6 @@ use crate::errors::{ Result, Error };
 const SINGLE_PACKET: i32 = -1;
 const MULTI_PACKET: i32 = -2;
 
-struct MultiPacketResponse {
-    size: usize,
-    id: u8,
-    number: u8,
-    split_size: u16,
-    compressed: bool,
-    payload: Vec<u8>,
-}
-
 struct PacketFragment {
     number: u8,
     payload: Vec<u8>,
