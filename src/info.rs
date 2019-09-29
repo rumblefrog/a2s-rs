@@ -7,6 +7,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use crate::{A2SClient, ReadCString};
 use crate::errors::{Error, Result};
 
+#[derive(Debug)]
 pub struct Info {
     // Protocol version used by the server.
     pub protocol: u8,
@@ -63,6 +64,7 @@ pub struct Info {
     pub source_tv: Option<SourceTVInfo>,
 }
 
+#[derive(Debug)]
 pub struct TheShip {
     // Indicates the game mode
     pub mode: TheShipMode,
@@ -74,6 +76,7 @@ pub struct TheShip {
     pub duration: u8 ,
 }
 
+#[derive(Debug)]
 pub enum TheShipMode {
     Hunt,
     Elimination,
@@ -98,6 +101,7 @@ impl From<u8> for TheShipMode {
     }
 }
 
+#[derive(Debug)]
 pub struct ExtendedServerInfo {
     // The server's game port number.
     // Available if edf & 0x80 is true
@@ -117,6 +121,7 @@ pub struct ExtendedServerInfo {
     pub game_id: Option<u64>,
 }
 
+#[derive(Debug)]
 pub struct SourceTVInfo {
     // Spectator port number for SourceTV.
     pub port: u16,
@@ -125,12 +130,14 @@ pub struct SourceTVInfo {
     pub name: String,
 }
 
+#[derive(Debug)]
 pub enum ServerType {
     Dedicated,
     NonDedicated,
     SourceTV,
 }
 
+#[derive(Debug)]
 pub enum ServerOS {
     Linux,
     Windows,
