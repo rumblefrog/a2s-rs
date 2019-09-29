@@ -80,7 +80,7 @@ impl A2SClient {
                     data.truncate(read);
                 }
 
-                // Skip ID field (4 bytes 0..4)
+                // Skip header field (4 bytes 0..4)
                 let packet_id = LittleEndian::read_i32(&data[4..8]);
 
                 if packet_id != id {
