@@ -26,7 +26,7 @@ pub struct A2SClient {
 }
 
 impl A2SClient {
-    pub fn new(max_size: Option<usize>) -> Result<A2SClient> {
+    pub fn new() -> Result<A2SClient> {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
 
         socket.set_read_timeout(Some(Duration::new(5, 0)))?;
@@ -34,24 +34,27 @@ impl A2SClient {
 
         Ok(A2SClient{
             socket: socket,
-            max_size: max_size.unwrap_or(1400),
+            max_size: 1400,
         })
+    }
+
+    pub fn max_size(&mut self, size: usize) -> &mut Self {
+        self.max_size = size;
+        self
     }
 
     fn send<A: ToSocketAddrs>(&self, payload: &[u8], addr: A) -> Result<Vec<u8>> {
         self.socket.send_to(payload, addr)?;
 
         // 32 Bit (4 bytes) header to indicate split or singular response
-        let mut header = [0; 4];
+        let mut data = vec![0; self.max_size];
 
-        self.socket.recv(&mut header)?;
+        let read = self.socket.recv(&mut data)?;
 
-        let header = LittleEndian::read_i32(&header);
+        let header = LittleEndian::read_i32(&data);
 
         if header == SINGLE_PACKET {
-            let mut data = vec![0u8; self.max_size];
-
-            let read = self.socket.recv(&mut data)?;
+            data.remove(0); data.remove(0); data.remove(0); data.remove(0);
 
             data.truncate(read);
 
@@ -64,13 +67,9 @@ impl A2SClient {
             // Number - byte (1 byte)
             // Size - short (2 bytes)
 
-            let mut data = [0u8, 8];
-
-            self.socket.recv(&mut data)?;
-
-            let id = LittleEndian::read_i32(&data[0..4]);
+            let id = LittleEndian::read_i32(&data[4..8]);
             let total_packets: usize = data[4] as usize;
-            let switching_size: usize = LittleEndian::read_i16(&data[6..8]) as usize;
+            let switching_size: usize = LittleEndian::read_i16(&data[8..10]) as usize;
 
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(total_packets);
 
@@ -107,6 +106,8 @@ impl A2SClient {
             for p in packets {
                 aggregation.extend(p.payload);
             }
+
+            aggregation.remove(0); aggregation.remove(0); aggregation.remove(0); aggregation.remove(0);
 
             if id as u32 & 0x80000000 != 0 {
                 let decompressed_size = LittleEndian::read_i32(&data[0..4]);
