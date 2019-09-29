@@ -1,5 +1,5 @@
 [package]
-name = "a2s-rs"
+name = "a2s"
 version = "0.1.0"
 authors = ["rumblefrog <contact@zhenyangli.me>"]
 edition = "2018"
