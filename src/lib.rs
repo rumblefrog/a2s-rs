@@ -4,10 +4,10 @@ pub mod errors;
 
 use std::net::{UdpSocket, ToSocketAddrs};
 use std::time::Duration;
-use std::io::{Read, Cursor};
+use std::io::{Read, Cursor, Write};
 use std::ops::Deref;
 
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use bzip2::read::{BzDecoder};
 use crc::{crc32};
 
