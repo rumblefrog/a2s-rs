@@ -1,4 +1,5 @@
 pub mod info;
+pub mod players;
 pub mod errors;
 
 use std::net::{UdpSocket, ToSocketAddrs};
@@ -23,6 +24,7 @@ struct PacketFragment {
 pub struct A2SClient {
     socket: UdpSocket,
     max_size: usize,
+    app_id: u16,
 }
 
 impl A2SClient {
@@ -35,6 +37,7 @@ impl A2SClient {
         Ok(A2SClient{
             socket: socket,
             max_size: 1400,
+            app_id: 0,
         })
     }
 
@@ -43,10 +46,14 @@ impl A2SClient {
         self
     }
 
+    pub fn app_id(&mut self, app_id: u16) -> &mut Self {
+        self.app_id = app_id;
+        self
+    }
+
     fn send<A: ToSocketAddrs>(&self, payload: &[u8], addr: A) -> Result<Vec<u8>> {
         self.socket.send_to(payload, addr)?;
-
-        // 32 Bit (4 bytes) header to indicate split or singular response
+        
         let mut data = vec![0; self.max_size];
 
         let read = self.socket.recv(&mut data)?;
@@ -136,6 +143,30 @@ impl A2SClient {
         else {
             Err(Error::InvalidResponse)
         }
+    }
+
+    fn do_challenge_request<A: ToSocketAddrs>(&self, addr: A, header: &[u8]) -> Result<Vec<u8>> {
+        let packet = Vec::with_capacity(9);
+        let mut packet = Cursor::new(packet);
+
+        packet.write_all(header)?;
+        packet.write_i32::<LittleEndian>(-1)?;
+
+        let data = self.send(packet.get_ref(), &addr)?;
+        let mut data = Cursor::new(data);
+
+        let header = data.read_u8()?;
+        if header != 'A' as u8 {
+            return Err(Error::InvalidResponse);
+        }
+
+        let challenge = data.read_i32::<LittleEndian>()?;
+
+        packet.set_position(5);
+        packet.write_i32::<LittleEndian>(challenge)?;
+        let data = self.send(packet.get_ref(), &addr)?;
+
+        Ok(data)
     }
 }
 

@@ -1,11 +1,16 @@
 use std::io::{Cursor, ErrorKind};
-use std::io::Write;
 use std::net::ToSocketAddrs;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{A2SClient, ReadCString};
 use crate::errors::{Error, Result};
+
+const INFO_REQUEST: [u8; 25] = [0xFF, 0xFF, 0xFF, 0xFF,
+                                0x54,
+                                0x53, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x20, 0x45, 0x6E, 0x67, 0x69,
+                                0x6E, 0x65, 0x20, 0x51, 0x75, 0x65, 0x72, 0x79,
+                                0x00];
 
 #[derive(Debug)]
 pub struct Info {
@@ -146,14 +151,7 @@ pub enum ServerOS {
 
 impl A2SClient {
     pub fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
-        let mut cursor = Cursor::new(vec![0u8, 25]);
-
-        cursor.write(&[0xff, 0xff, 0xff, 0xff])?;
-        cursor.write(&[0x54])?;
-        cursor.write(b"Source Engine Query")?;
-        cursor.write(&[0x00])?;
-
-        let data = self.send(cursor.get_ref(), addr)?;
+        let data = self.send(&INFO_REQUEST[..], addr)?;
         let mut data = Cursor::new(data);
 
         if data.read_u8()? != 0x49u8 {
