@@ -9,12 +9,17 @@ use crate::errors::{Error, Result};
 const RULES_REQUEST: [u8; 5] = [0xFF, 0xFF, 0xFF, 0xFF, 0x56];
 
 pub struct Rules {
+    // Number of rules in the response.
     pub count: u16,
+
     pub rules: Vec<Rule>,
 }
 
 pub struct Rule {
+    // Name of the rule.
     pub name: String,
+
+    // Value of the rule.
     pub value: String,
 }
 
