@@ -1,5 +1,6 @@
 pub mod info;
 pub mod players;
+pub mod rules;
 pub mod errors;
 
 use std::net::{UdpSocket, ToSocketAddrs};

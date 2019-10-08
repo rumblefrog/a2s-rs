@@ -151,7 +151,7 @@ pub enum ServerOS {
 
 impl A2SClient {
     pub fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
-        let data = self.send(&INFO_REQUEST[..], addr)?;
+        let data = self.send(&INFO_REQUEST, addr)?;
         let mut data = Cursor::new(data);
 
         if data.read_u8()? != 0x49u8 {

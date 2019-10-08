@@ -38,9 +38,9 @@ pub struct TheShipPlayer {
     pub money: u32,
 }
 
-impl A2SClient{
+impl A2SClient {
     pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
-        let data = self.do_challenge_request(addr, &PLAYER_REQUEST[..])?;
+        let data = self.do_challenge_request(addr, &PLAYER_REQUEST)?;
 
         let mut data = Cursor::new(data);
 
