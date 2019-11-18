@@ -8,12 +8,14 @@ use crate::errors::{Error, Result};
 
 const PLAYER_REQUEST: [u8; 5] = [0xff, 0xff, 0xff, 0xff, 0x55];
 
+#[derive(Debug)]
 pub struct Players {
     pub count: u8,
 
     pub players: Vec<Player>,
 }
 
+#[derive(Debug)]
 pub struct Player {
     // Index of player chunk starting from 0.
 	// This seems to be always 0?
@@ -32,6 +34,7 @@ pub struct Player {
     pub the_ship: Option<TheShipPlayer>,
 }
 
+#[derive(Debug)]
 pub struct TheShipPlayer {
     pub deaths: u32,
 
