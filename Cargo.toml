@@ -1,6 +1,8 @@
 [package]
 name = "a2s"
 version = "0.1.0"
+license = "MIT"
+repository = "https://github.com/rumblefrog/a2s-rs"
 authors = ["rumblefrog <contact@zhenyangli.me>"]
 edition = "2018"
 
