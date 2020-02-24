@@ -177,9 +177,10 @@ trait ReadCString {
 
 impl ReadCString for Cursor<Vec<u8>> {
     fn read_cstring(&mut self) -> Result<String> {
+        let end = self.get_ref().len() as u64;
         let mut buf = [0; 1];
         let mut str_vec = Vec::with_capacity(256);
-        loop {
+        while self.position() < end {
             self.read(&mut buf)?;
             if buf[0] == 0 { break; } else { str_vec.push(buf[0]); }
         }
