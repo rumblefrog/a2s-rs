@@ -1,18 +1,21 @@
 use std::io::{Cursor, ErrorKind};
 use std::net::ToSocketAddrs;
 
+#[cfg(feature = "serde")]
+use serde::Serialize;
+
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{A2SClient, ReadCString};
 use crate::errors::{Error, Result};
+use crate::{A2SClient, ReadCString};
 
-const INFO_REQUEST: [u8; 25] = [0xFF, 0xFF, 0xFF, 0xFF,
-                                0x54,
-                                0x53, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x20, 0x45, 0x6E, 0x67, 0x69,
-                                0x6E, 0x65, 0x20, 0x51, 0x75, 0x65, 0x72, 0x79,
-                                0x00];
+const INFO_REQUEST: [u8; 25] = [
+    0xFF, 0xFF, 0xFF, 0xFF, 0x54, 0x53, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x20, 0x45, 0x6E, 0x67, 0x69,
+    0x6E, 0x65, 0x20, 0x51, 0x75, 0x65, 0x72, 0x79, 0x00,
+];
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Info {
     // Protocol version used by the server.
     pub protocol: u8,
@@ -42,7 +45,7 @@ pub struct Info {
     pub bots: u8,
 
     // Indicates the type of server
-	// Rag Doll Kung Fu servers always return 0 for "Server type."
+    // Rag Doll Kung Fu servers always return 0 for "Server type."
     pub server_type: ServerType,
 
     // Indicates the operating system of the server
@@ -69,7 +72,8 @@ pub struct Info {
     pub source_tv: Option<SourceTVInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TheShip {
     // Indicates the game mode
     pub mode: TheShipMode,
@@ -78,10 +82,11 @@ pub struct TheShip {
     pub witnesses: u8,
 
     // Time (in seconds) before a player is arrested while being witnessed.
-    pub duration: u8 ,
+    pub duration: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum TheShipMode {
     Hunt,
     Elimination,
@@ -93,7 +98,7 @@ pub enum TheShipMode {
 }
 
 impl From<u8> for TheShipMode {
-    fn from (v: u8) -> Self {
+    fn from(v: u8) -> Self {
         match v {
             0 => Self::Hunt,
             1 => Self::Elimination,
@@ -106,7 +111,8 @@ impl From<u8> for TheShipMode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ExtendedServerInfo {
     // The server's game port number.
     // Available if edf & 0x80 is true
@@ -126,7 +132,8 @@ pub struct ExtendedServerInfo {
     pub game_id: Option<u64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct SourceTVInfo {
     // Spectator port number for SourceTV.
     pub port: u16,
@@ -135,14 +142,16 @@ pub struct SourceTVInfo {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum ServerType {
     Dedicated,
     NonDedicated,
     SourceTV,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum ServerOS {
     Linux,
     Windows,
@@ -161,7 +170,7 @@ impl A2SClient {
         let app_id: u16;
         let mut flag = 0u8;
 
-        Ok(Info{
+        Ok(Info {
             protocol: data.read_u8()?,
             name: data.read_cstring()?,
             map: data.read_cstring()?,
@@ -180,7 +189,7 @@ impl A2SClient {
                     'd' => ServerType::Dedicated,
                     'i' => ServerType::NonDedicated,
                     'p' => ServerType::SourceTV,
-                    _ => return Err(Error::Other("Invalid server type"))
+                    _ => return Err(Error::Other("Invalid server type")),
                 }
             },
             server_os: {
@@ -188,14 +197,14 @@ impl A2SClient {
                     'l' => ServerOS::Linux,
                     'w' => ServerOS::Windows,
                     'm' | 'o' => ServerOS::Mac,
-                    _ => return Err(Error::Other("Invalid environment"))
+                    _ => return Err(Error::Other("Invalid environment")),
                 }
             },
             visibility: data.read_u8()? != 0,
             vac: data.read_u8()? != 0,
             the_ship: {
                 if app_id == 2400 {
-                    Some(TheShip{
+                    Some(TheShip {
                         mode: TheShipMode::from(data.read_u8()?),
                         witnesses: data.read_u8()?,
                         duration: data.read_u8()?,
@@ -207,12 +216,18 @@ impl A2SClient {
             version: data.read_cstring()?,
             edf: {
                 match data.read_u8() {
-                    Ok(val) => { flag = val; },
-                    Err(err) => { if err.kind() != ErrorKind::UnexpectedEof { return Err(Error::Io(err)); }}
-                }   
+                    Ok(val) => {
+                        flag = val;
+                    }
+                    Err(err) => {
+                        if err.kind() != ErrorKind::UnexpectedEof {
+                            return Err(Error::Io(err));
+                        }
+                    }
+                }
                 flag
             },
-            extended_server_info: ExtendedServerInfo{
+            extended_server_info: ExtendedServerInfo {
                 port: {
                     if flag & 0x80 != 0 {
                         Some(data.read_u16::<LittleEndian>()?)
@@ -221,7 +236,7 @@ impl A2SClient {
                     }
                 },
                 steam_id: {
-                    if flag & 0x10 != 0 { 
+                    if flag & 0x10 != 0 {
                         Some(data.read_u64::<LittleEndian>()?)
                     } else {
                         None
@@ -240,18 +255,18 @@ impl A2SClient {
                     } else {
                         None
                     }
-                }
+                },
             },
             source_tv: {
                 if flag & 0x40 != 0 {
-                    Some(SourceTVInfo{
+                    Some(SourceTVInfo {
                         port: data.read_u16::<LittleEndian>()?,
                         name: data.read_cstring()?,
                     })
                 } else {
                     None
                 }
-            }
+            },
         })
     }
 }

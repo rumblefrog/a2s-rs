@@ -1,56 +1,24 @@
-use std::fmt::{Display, Formatter};
-
-use std::error::Error as StdError;
-use std::io::Error as IoError;
+use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
-    Io(IoError),
+    #[error("IO error {0}")]
+    Io(#[from] std::io::Error),
 
+    #[error("Invalid response")]
     InvalidResponse,
 
+    #[error("Mismatch packet ID")]
     MismatchID,
 
+    #[error("Invalid Bz2 size")]
     InvalidBz2Size,
 
+    #[error("Decompressed checksum does not match")]
     CheckSumMismatch,
 
+    #[error("{0}")]
     Other(&'static str),
-}
-
-impl From<IoError> for Error {
-    fn from(err: IoError) -> Error {
-        Error::Io(err)
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Error::Io(ref inner) => inner.fmt(f),
-            _ => f.write_str("dnno"),
-        }
-    }
-}
-
-impl StdError for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::Io(ref inner) => inner.description(),
-            Error::InvalidResponse => "Invalid response",
-            Error::MismatchID => "Mismatch packet ID",
-            Error::InvalidBz2Size => "Invalid Bz2 Size",
-            Error::CheckSumMismatch => "Decompressed checksum does not match",
-            Error::Other(msg) => msg,
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        match *self {
-            Error::Io(ref inner) => Some(inner),
-            _ => None,
-        }
-    }
 }

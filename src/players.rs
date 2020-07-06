@@ -3,22 +3,27 @@ use std::net::ToSocketAddrs;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{A2SClient, ReadCString};
+#[cfg(feature = "serde")]
+use serde::Serialize;
+
 use crate::errors::{Error, Result};
+use crate::{A2SClient, ReadCString};
 
 const PLAYER_REQUEST: [u8; 5] = [0xff, 0xff, 0xff, 0xff, 0x55];
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Players {
     pub count: u8,
 
     pub players: Vec<Player>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Player {
     // Index of player chunk starting from 0.
-	// This seems to be always 0?
+    // This seems to be always 0?
     pub index: u8,
 
     // Name of the player.
@@ -34,7 +39,8 @@ pub struct Player {
     pub the_ship: Option<TheShipPlayer>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TheShipPlayer {
     pub deaths: u32,
 
@@ -56,25 +62,25 @@ impl A2SClient {
         let mut players: Vec<Player> = Vec::with_capacity(player_count as usize);
 
         for _ in 0..player_count {
-            players.push(Player{
+            players.push(Player {
                 index: data.read_u8()?,
                 name: data.read_cstring()?,
                 score: data.read_u32::<LittleEndian>()?,
                 duration: data.read_f32::<LittleEndian>()?,
                 the_ship: {
                     if self.app_id == 2400 {
-                        Some(TheShipPlayer{
+                        Some(TheShipPlayer {
                             deaths: data.read_u32::<LittleEndian>()?,
                             money: data.read_u32::<LittleEndian>()?,
                         })
                     } else {
                         None
                     }
-                }
+                },
             })
         }
 
-        Ok(Players{
+        Ok(Players {
             count: player_count,
             players: players,
         })

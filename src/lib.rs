@@ -1,18 +1,18 @@
+pub mod errors;
 pub mod info;
 pub mod players;
 pub mod rules;
-pub mod errors;
 
-use std::net::{UdpSocket, ToSocketAddrs};
-use std::time::Duration;
-use std::io::{Read, Cursor, Write};
+use std::io::{Cursor, Read, Write};
+use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::Deref;
+use std::time::Duration;
 
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
-use bzip2::read::{BzDecoder};
-use crc::{crc32};
+use bzip2::read::BzDecoder;
+use crc::crc32;
 
-use crate::errors::{ Result, Error };
+use crate::errors::{Error, Result};
 
 const SINGLE_PACKET: i32 = -1;
 const MULTI_PACKET: i32 = -2;
@@ -35,7 +35,7 @@ impl A2SClient {
         socket.set_read_timeout(Some(Duration::new(5, 0)))?;
         socket.set_write_timeout(Some(Duration::new(5, 0)))?;
 
-        Ok(A2SClient{
+        Ok(A2SClient {
             socket: socket,
             max_size: 1400,
             app_id: 0,
@@ -54,7 +54,7 @@ impl A2SClient {
 
     fn send<A: ToSocketAddrs>(&self, payload: &[u8], addr: A) -> Result<Vec<u8>> {
         self.socket.send_to(payload, addr)?;
-        
+
         let mut data = vec![0; self.max_size];
 
         let read = self.socket.recv(&mut data)?;
@@ -62,14 +62,15 @@ impl A2SClient {
         let header = LittleEndian::read_i32(&data);
 
         if header == SINGLE_PACKET {
-            data.remove(0); data.remove(0); data.remove(0); data.remove(0);
+            data.remove(0);
+            data.remove(0);
+            data.remove(0);
+            data.remove(0);
 
             data.truncate(read);
 
             Ok(data)
-        } 
-
-        else if header == MULTI_PACKET {
+        } else if header == MULTI_PACKET {
             // ID - long (4 bytes)
             // Total - byte (1 byte)
             // Number - byte (1 byte)
@@ -97,7 +98,7 @@ impl A2SClient {
                     return Err(Error::MismatchID);
                 }
 
-                packets.push(PacketFragment{
+                packets.push(PacketFragment {
                     number: data[10],
                     payload: Vec::from(&data[12..]),
                 });
@@ -115,13 +116,16 @@ impl A2SClient {
                 aggregation.extend(p.payload);
             }
 
-            aggregation.remove(0); aggregation.remove(0); aggregation.remove(0); aggregation.remove(0);
+            aggregation.remove(0);
+            aggregation.remove(0);
+            aggregation.remove(0);
+            aggregation.remove(0);
 
             if id as u32 & 0x80000000 != 0 {
                 let decompressed_size = LittleEndian::read_i32(&data[0..4]);
                 let checksum = LittleEndian::read_i32(&data[4..8]);
 
-                if decompressed_size > (1024*1024) {
+                if decompressed_size > (1024 * 1024) {
                     return Err(Error::InvalidBz2Size);
                 }
 
@@ -134,14 +138,10 @@ impl A2SClient {
                 }
 
                 Ok(decompressed)
-            } 
-            
-            else {
+            } else {
                 Ok(aggregation)
             }
-        }
-
-        else {
+        } else {
             Err(Error::InvalidResponse)
         }
     }
@@ -182,7 +182,11 @@ impl ReadCString for Cursor<Vec<u8>> {
         let mut str_vec = Vec::with_capacity(256);
         while self.position() < end {
             self.read(&mut buf)?;
-            if buf[0] == 0 { break; } else { str_vec.push(buf[0]); }
+            if buf[0] == 0 {
+                break;
+            } else {
+                str_vec.push(buf[0]);
+            }
         }
         Ok(String::from_utf8_lossy(&str_vec[..]).into_owned())
     }
