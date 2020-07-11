@@ -2,7 +2,7 @@ use std::io::{Cursor, ErrorKind};
 use std::net::ToSocketAddrs;
 
 #[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -15,7 +15,7 @@ const INFO_REQUEST: [u8; 25] = [
 ];
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Info {
     // Protocol version used by the server.
     pub protocol: u8,
@@ -73,7 +73,7 @@ pub struct Info {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TheShip {
     // Indicates the game mode
     pub mode: TheShipMode,
@@ -86,7 +86,7 @@ pub struct TheShip {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum TheShipMode {
     Hunt,
     Elimination,
@@ -112,7 +112,7 @@ impl From<u8> for TheShipMode {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct ExtendedServerInfo {
     // The server's game port number.
     // Available if edf & 0x80 is true
@@ -133,7 +133,7 @@ pub struct ExtendedServerInfo {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SourceTVInfo {
     // Spectator port number for SourceTV.
     pub port: u16,
@@ -143,7 +143,7 @@ pub struct SourceTVInfo {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ServerType {
     Dedicated,
     NonDedicated,
@@ -151,7 +151,7 @@ pub enum ServerType {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ServerOS {
     Linux,
     Windows,

@@ -12,7 +12,7 @@ use crate::{A2SClient, ReadCString};
 const RULES_REQUEST: [u8; 5] = [0xFF, 0xFF, 0xFF, 0xFF, 0x56];
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Rules {
     // Number of rules in the response.
     pub count: u16,
@@ -21,7 +21,7 @@ pub struct Rules {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Rule {
     // Name of the rule.
     pub name: String,

@@ -12,7 +12,7 @@ use crate::{A2SClient, ReadCString};
 const PLAYER_REQUEST: [u8; 5] = [0xff, 0xff, 0xff, 0xff, 0x55];
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Players {
     pub count: u8,
 
@@ -20,7 +20,7 @@ pub struct Players {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Player {
     // Index of player chunk starting from 0.
     // This seems to be always 0?
@@ -40,7 +40,7 @@ pub struct Player {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TheShipPlayer {
     pub deaths: u32,
 
