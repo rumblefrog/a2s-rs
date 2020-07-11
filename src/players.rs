@@ -4,7 +4,7 @@ use std::net::ToSocketAddrs;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 #[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
 use crate::{A2SClient, ReadCString};
