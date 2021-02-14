@@ -1,7 +1,11 @@
 use std::io::Cursor;
+#[cfg(not(feature = "async"))]
 use std::net::ToSocketAddrs;
 
 use byteorder::{LittleEndian, ReadBytesExt};
+
+#[cfg(feature = "async")]
+use tokio::net::ToSocketAddrs;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -31,11 +35,7 @@ pub struct Rule {
 }
 
 impl A2SClient {
-    pub fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Rules> {
-        let data = self.do_challenge_request(addr, &RULES_REQUEST)?;
-
-        let mut data = Cursor::new(data);
-
+    fn read_rule_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Rules> {
         if data.read_u8()? != 0x45 {
             return Err(Error::InvalidResponse);
         }
@@ -55,5 +55,17 @@ impl A2SClient {
             count: count,
             rules: rules,
         })
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Rules> {
+        let data = self.do_challenge_request(addr, &RULES_REQUEST).await?;
+        self.read_rule_data(Cursor::new(data))
+    }
+
+    #[cfg(not(feature = "async"))]
+    pub fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Rules> {
+        let data = self.do_challenge_request(addr, &RULES_REQUEST)?;
+        self.read_rule_data(Cursor::new(data))
     }
 }

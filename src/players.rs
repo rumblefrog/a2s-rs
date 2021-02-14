@@ -1,5 +1,9 @@
 use std::io::Cursor;
+#[cfg(not(feature = "async"))]
 use std::net::ToSocketAddrs;
+
+#[cfg(feature = "async")]
+use tokio::net::ToSocketAddrs;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -48,11 +52,7 @@ pub struct TheShipPlayer {
 }
 
 impl A2SClient {
-    pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
-        let data = self.do_challenge_request(addr, &PLAYER_REQUEST)?;
-
-        let mut data = Cursor::new(data);
-
+    fn read_player_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Players> {
         if data.read_u8()? != 0x44 {
             return Err(Error::InvalidResponse);
         }
@@ -84,5 +84,17 @@ impl A2SClient {
             count: player_count,
             players: players,
         })
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
+        let data = self.do_challenge_request(addr, &PLAYER_REQUEST).await?;
+        self.read_player_data(Cursor::new(data))
+    }
+
+    #[cfg(not(feature = "async"))]
+    pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
+        let data = self.do_challenge_request(addr, &PLAYER_REQUEST)?;
+        self.read_player_data(Cursor::new(data))
     }
 }

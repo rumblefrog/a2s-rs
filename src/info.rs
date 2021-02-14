@@ -1,5 +1,9 @@
 use std::io::{Cursor, ErrorKind};
+#[cfg(not(feature = "async"))]
 use std::net::ToSocketAddrs;
+
+#[cfg(feature = "async")]
+use tokio::net::ToSocketAddrs;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -159,10 +163,7 @@ pub enum ServerOS {
 }
 
 impl A2SClient {
-    pub fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
-        let data = self.send(&INFO_REQUEST, addr)?;
-        let mut data = Cursor::new(data);
-
+    fn read_info_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Info> {
         if data.read_u8()? != 0x49u8 {
             return Err(Error::InvalidResponse);
         }
@@ -268,5 +269,17 @@ impl A2SClient {
                 }
             },
         })
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
+        let data = self.send(&INFO_REQUEST, addr).await?;
+        self.read_info_data(Cursor::new(data))
+    }
+
+    #[cfg(not(feature = "async"))]
+    pub fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
+        let data = self.send(&INFO_REQUEST, addr)?;
+        self.read_info_data(Cursor::new(data))
     }
 }
