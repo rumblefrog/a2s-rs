@@ -1,7 +1,7 @@
 [package]
 name = "a2s"
 description = "Rust implementation of Source A2S query"
-version = "0.2.2"
+version = "0.2.3"
 license = "MIT"
 repository = "https://github.com/rumblefrog/a2s-rs"
 authors = ["rumblefrog <contact@rumblefrog.me>"]
