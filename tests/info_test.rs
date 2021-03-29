@@ -1,5 +1,4 @@
-extern crate a2s;
-
+#[cfg(not(feature = "async"))]
 #[test]
 fn test_info() {
     let client = a2s::A2SClient::new().unwrap();
