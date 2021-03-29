@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{Cursor, ErrorKind};
 #[cfg(not(feature = "async"))]
 use std::net::ToSocketAddrs;
@@ -154,6 +155,18 @@ pub enum ServerType {
     SourceTV,
 }
 
+impl TryFrom<u8> for ServerType {
+    type Error = Error;
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'd' => Ok(Self::Dedicated),
+            b'i' => Ok(Self::NonDedicated),
+            b'p' => Ok(Self::SourceTV),
+            _ => Err(Self::Error::Other("Invalid server type")),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ServerOS {
@@ -162,112 +175,108 @@ pub enum ServerOS {
     Mac,
 }
 
+impl TryFrom<u8> for ServerOS {
+    type Error = Error;
+
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'l' => Ok(Self::Linux),
+            b'w' => Ok(Self::Windows),
+            b'm' | b'o' => Ok(Self::Mac),
+            _ => Err(Self::Error::Other("Invalid environment")),
+        }
+    }
+}
+
 impl A2SClient {
     fn read_info_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Info> {
         if data.read_u8()? != 0x49u8 {
             return Err(Error::InvalidResponse);
         }
 
-        let app_id: u16;
-        let mut flag = 0u8;
+        let protocol = data.read_u8()?;
+        let name = data.read_cstring()?;
+        let map = data.read_cstring()?;
+        let folder = data.read_cstring()?;
+        let game = data.read_cstring()?;
+        let app_id = data.read_u16::<LittleEndian>()?;
+        let players = data.read_u8()?;
+        let max_players = data.read_u8()?;
+        let bots = data.read_u8()?;
+        let server_type = ServerType::try_from(data.read_u8()?)?;
+        let server_os = ServerOS::try_from(data.read_u8()?)?;
+        let visibility = data.read_u8()? != 0;
+        let vac = data.read_u8()? != 0;
+        let the_ship = if app_id == 2400 {
+            Some(TheShip {
+                mode: TheShipMode::from(data.read_u8()?),
+                witnesses: data.read_u8()?,
+                duration: data.read_u8()?,
+            })
+        } else {
+            None
+        };
+        let version = data.read_cstring()?;
+        let edf = match data.read_u8() {
+            Ok(val) => val,
+            Err(err) => {
+                if err.kind() != ErrorKind::UnexpectedEof {
+                    return Err(Error::Io(err));
+                } else {
+                    0
+                }
+            }
+        };
+        let extended_server_info = ExtendedServerInfo {
+            port: if edf & 0x80 != 0 {
+                Some(data.read_u16::<LittleEndian>()?)
+            } else {
+                None
+            },
+            steam_id: if edf & 0x10 != 0 {
+                Some(data.read_u64::<LittleEndian>()?)
+            } else {
+                None
+            },
+            keywords: if edf & 0x20 != 0 {
+                Some(data.read_cstring()?)
+            } else {
+                None
+            },
+            game_id: if edf & 0x01 != 0 {
+                Some(data.read_u64::<LittleEndian>()?)
+            } else {
+                None
+            },
+        };
+        let source_tv = if edf & 0x40 != 0 {
+            Some(SourceTVInfo {
+                port: data.read_u16::<LittleEndian>()?,
+                name: data.read_cstring()?,
+            })
+        } else {
+            None
+        };
 
         Ok(Info {
-            protocol: data.read_u8()?,
-            name: data.read_cstring()?,
-            map: data.read_cstring()?,
-            folder: data.read_cstring()?,
-            game: data.read_cstring()?,
-            app_id: {
-                app_id = data.read_u16::<LittleEndian>()?;
-
-                app_id
-            },
-            players: data.read_u8()?,
-            max_players: data.read_u8()?,
-            bots: data.read_u8()?,
-            server_type: {
-                match data.read_u8()? as char {
-                    'd' => ServerType::Dedicated,
-                    'i' => ServerType::NonDedicated,
-                    'p' => ServerType::SourceTV,
-                    _ => return Err(Error::Other("Invalid server type")),
-                }
-            },
-            server_os: {
-                match data.read_u8()? as char {
-                    'l' => ServerOS::Linux,
-                    'w' => ServerOS::Windows,
-                    'm' | 'o' => ServerOS::Mac,
-                    _ => return Err(Error::Other("Invalid environment")),
-                }
-            },
-            visibility: data.read_u8()? != 0,
-            vac: data.read_u8()? != 0,
-            the_ship: {
-                if app_id == 2400 {
-                    Some(TheShip {
-                        mode: TheShipMode::from(data.read_u8()?),
-                        witnesses: data.read_u8()?,
-                        duration: data.read_u8()?,
-                    })
-                } else {
-                    None
-                }
-            },
-            version: data.read_cstring()?,
-            edf: {
-                match data.read_u8() {
-                    Ok(val) => {
-                        flag = val;
-                    }
-                    Err(err) => {
-                        if err.kind() != ErrorKind::UnexpectedEof {
-                            return Err(Error::Io(err));
-                        }
-                    }
-                }
-                flag
-            },
-            extended_server_info: ExtendedServerInfo {
-                port: {
-                    if flag & 0x80 != 0 {
-                        Some(data.read_u16::<LittleEndian>()?)
-                    } else {
-                        None
-                    }
-                },
-                steam_id: {
-                    if flag & 0x10 != 0 {
-                        Some(data.read_u64::<LittleEndian>()?)
-                    } else {
-                        None
-                    }
-                },
-                keywords: {
-                    if flag & 0x20 != 0 {
-                        Some(data.read_cstring()?)
-                    } else {
-                        None
-                    }
-                },
-                game_id: {
-                    if flag & 0x01 != 0 {
-                        Some(data.read_u64::<LittleEndian>()?)
-                    } else {
-                        None
-                    }
-                },
-            },
-            source_tv: {
-                if flag & 0x40 != 0 {
-                    Some(SourceTVInfo {
-                        port: data.read_u16::<LittleEndian>()?,
-                        name: data.read_cstring()?,
-                    })
-                } else {
-                    None
-                }
-            },
+            protocol,
+            name,
+            map,
+            folder,
+            game,
+            app_id,
+            players,
+            max_players,
+            bots,
+            server_type,
+            server_os,
+            visibility,
+            vac,
+            the_ship,
+            version,
+            edf,
+            extended_server_info,
+            source_tv,
         })
     }
 

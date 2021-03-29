@@ -51,10 +51,7 @@ impl A2SClient {
             })
         }
 
-        Ok(Rules {
-            count: count,
-            rules: rules,
-        })
+        Ok(Rules { count, rules })
     }
 
     #[cfg(feature = "async")]
