@@ -82,7 +82,7 @@ impl A2SClient {
 
         Ok(Players {
             count: player_count,
-            players: players,
+            players,
         })
     }
 

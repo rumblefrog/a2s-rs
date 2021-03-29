@@ -56,7 +56,7 @@ impl A2SClient {
         socket.set_write_timeout(Some(timeout))?;
 
         Ok(A2SClient {
-            socket: socket,
+            socket,
             max_size: 1400,
             app_id: 0,
         })
@@ -286,7 +286,7 @@ impl A2SClient {
 
                 let mut decompressed = Vec::with_capacity(total_packets * self.max_size);
 
-                BzDecoder::new(aggregation.deref()).read(&mut decompressed)?;
+                BzDecoder::new(aggregation.deref()).read_exact(&mut decompressed)?;
 
                 if crc32::checksum_ieee(&decompressed) != checksum as u32 {
                     return Err(Error::CheckSumMismatch);
@@ -313,7 +313,7 @@ impl A2SClient {
         let mut data = Cursor::new(data);
 
         let header = data.read_u8()?;
-        if header != 'A' as u8 {
+        if header != b'A' {
             return Err(Error::InvalidResponse);
         }
 
@@ -337,7 +337,7 @@ impl ReadCString for Cursor<Vec<u8>> {
         let mut buf = [0; 1];
         let mut str_vec = Vec::with_capacity(256);
         while self.position() < end {
-            self.read(&mut buf)?;
+            self.read_exact(&mut buf)?;
             if buf[0] == 0 {
                 break;
             } else {
