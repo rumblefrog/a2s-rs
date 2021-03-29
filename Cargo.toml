@@ -6,6 +6,7 @@ license = "MIT"
 repository = "https://github.com/rumblefrog/a2s-rs"
 authors = ["rumblefrog <contact@rumblefrog.me>"]
 edition = "2018"
+keywords = ["steam", "query"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
