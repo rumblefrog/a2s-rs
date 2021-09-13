@@ -34,7 +34,7 @@ pub struct Player {
     pub name: String,
 
     // Player's score (usually "frags" or "kills".)
-    pub score: u32,
+    pub score: i32,
 
     // Time (in seconds) player has been connected to the server.
     pub duration: f32,
@@ -65,7 +65,7 @@ impl A2SClient {
             players.push(Player {
                 index: data.read_u8()?,
                 name: data.read_cstring()?,
-                score: data.read_u32::<LittleEndian>()?,
+                score: data.read_i32::<LittleEndian>()?,
                 duration: data.read_f32::<LittleEndian>()?,
                 the_ship: {
                     if self.app_id == 2400 {
