@@ -1,7 +1,7 @@
 [package]
 name = "a2s"
 description = "Rust implementation of Source A2S query"
-version = "0.2.3"
+version = "0.3.0"
 license = "MIT"
 repository = "https://github.com/rumblefrog/a2s-rs"
 authors = ["rumblefrog <contact@rumblefrog.me>"]
@@ -11,14 +11,18 @@ keywords = ["steam", "query"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.0.0", features = ["full"], optional = true }
-byteorder = "1.3.2"
-bzip2 = "0.3.3"
-crc = "^1.0.0"
-thiserror = "1.0"
+byteorder = "1"
+bzip2 = "0.3"
+crc = "1"
+thiserror = "1"
+
+[dependencies.tokio]
+version = "1"
+features = ["net", "time"]
+optional = true
 
 [dependencies.serde]
-version = "1.0"
+version = "1"
 features = ["derive"]
 optional = true
 
