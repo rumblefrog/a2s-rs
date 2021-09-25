@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::io::{Cursor, ErrorKind};
+use std::io::{Cursor, ErrorKind, Write};
 #[cfg(not(feature = "async"))]
 use std::net::ToSocketAddrs;
 
@@ -9,7 +9,7 @@ use tokio::net::ToSocketAddrs;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::errors::{Error, Result};
 use crate::{A2SClient, ReadCString};
@@ -282,13 +282,43 @@ impl A2SClient {
 
     #[cfg(feature = "async")]
     pub async fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
-        let data = self.send(&INFO_REQUEST, addr).await?;
-        self.read_info_data(Cursor::new(data))
+        let response = self.send(&INFO_REQUEST, &addr).await?;
+
+        let mut packet = Cursor::new(&response);
+
+        let header = packet.read_u8()?;
+        if header == 'A' as u8 {
+            let challenge = packet.read_i32::<LittleEndian>()?;
+
+            let mut query = Vec::with_capacity(29);
+            query.write_all(&INFO_REQUEST)?;
+            query.write_i32::<LittleEndian>(challenge)?;
+
+            let data = self.send(&query, addr).await?;
+            self.read_info_data(Cursor::new(data))
+        } else {
+            self.read_info_data(Cursor::new(response))
+        }
     }
 
     #[cfg(not(feature = "async"))]
     pub fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
-        let data = self.send(&INFO_REQUEST, addr)?;
-        self.read_info_data(Cursor::new(data))
+        let response = self.send(&INFO_REQUEST, &addr)?;
+
+        let mut packet = Cursor::new(&response);
+
+        let header = packet.read_u8()?;
+        if header == 'A' as u8 {
+            let challenge = packet.read_i32::<LittleEndian>()?;
+
+            let mut query = Vec::with_capacity(29);
+            query.write_all(&INFO_REQUEST)?;
+            query.write_i32::<LittleEndian>(challenge)?;
+
+            let data = self.send(&query, addr)?;
+            self.read_info_data(Cursor::new(data))
+        } else {
+            self.read_info_data(Cursor::new(response))
+        }
     }
 }
