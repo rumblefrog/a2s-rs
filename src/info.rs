@@ -22,71 +22,71 @@ const INFO_REQUEST: [u8; 25] = [
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Info {
-    // Protocol version used by the server.
+    /// Protocol version used by the server.
     pub protocol: u8,
 
-    // Name of the server.
+    /// Name of the server.
     pub name: String,
 
-    // Map the server has currently loaded.
+    /// Map the server has currently loaded.
     pub map: String,
 
-    // Name of the folder containing the game files.
+    /// Name of the folder containing the game files.
     pub folder: String,
 
-    // Full name of the game.
+    /// Full name of the game.
     pub game: String,
 
-    // Steam Application ID of game.
+    /// Steam Application ID of game.
     pub app_id: u16,
 
-    // Number of players on the server.
+    /// Number of players on the server.
     pub players: u8,
 
-    // Maximum number of players the server reports it can hold.
+    /// Maximum number of players the server reports it can hold.
     pub max_players: u8,
 
-    // Number of bots on the server.
+    /// Number of bots on the server.
     pub bots: u8,
 
-    // Indicates the type of server
-    // Rag Doll Kung Fu servers always return 0 for "Server type."
+    /// Indicates the type of server
+    /// Rag Doll Kung Fu servers always return 0 for "Server type."
     pub server_type: ServerType,
 
-    // Indicates the operating system of the server
+    /// Indicates the operating system of the server
     pub server_os: ServerOS,
 
-    // Indicates whether the server requires a password
+    /// Indicates whether the server requires a password
     pub visibility: bool,
 
-    // Specifies whether the server uses VAC
+    /// Specifies whether the server uses VAC
     pub vac: bool,
 
-    // These fields only exist in a response if the server is running The Ship
+    /// These fields only exist in a response if the server is running The Ship
     pub the_ship: Option<TheShip>,
 
-    // Version of the game installed on the server.
+    /// Version of the game installed on the server.
     pub version: String,
 
-    // If present, this specifies which additional data fields will be included.
+    /// If present, this specifies which additional data fields will be included.
     pub edf: u8,
 
     pub extended_server_info: ExtendedServerInfo,
 
-    // Available if edf & 0x40 is true
+    /// Available if edf & 0x40 is true
     pub source_tv: Option<SourceTVInfo>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TheShip {
-    // Indicates the game mode
+    /// Indicates the game mode
     pub mode: TheShipMode,
 
-    // The number of witnesses necessary to have a player arrested.
+    /// The number of witnesses necessary to have a player arrested.
     pub witnesses: u8,
 
-    // Time (in seconds) before a player is arrested while being witnessed.
+    /// Time (in seconds) before a player is arrested while being witnessed.
     pub duration: u8,
 }
 
@@ -119,31 +119,31 @@ impl From<u8> for TheShipMode {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct ExtendedServerInfo {
-    // The server's game port number.
-    // Available if edf & 0x80 is true
+    /// The server's game port number.
+    /// Available if edf & 0x80 is true
     pub port: Option<u16>,
 
-    // Server's SteamID.
-    // Available if edf & 0x10 is true
+    /// Server's SteamID.
+    /// Available if edf & 0x10 is true
     pub steam_id: Option<u64>,
 
-    // Tags that describe the game according to the server (for future use.)
-    // Available if edf & 0x20 is true
+    /// Tags that describe the game according to the server (for future use.)
+    /// Available if edf & 0x20 is true
     pub keywords: Option<String>,
 
-    // The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
-    // The earlier AppID could have been truncated as it was forced into 16-bit storage.
-    // Avaialble if edf & 0x01 is true
+    /// The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
+    /// The earlier AppID could have been truncated as it was forced into 16-bit storage.
+    /// Avaialble if edf & 0x01 is true
     pub game_id: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SourceTVInfo {
-    // Spectator port number for SourceTV.
+    /// Spectator port number for SourceTV.
     pub port: u16,
 
-    // Name of the spectator server for SourceTV.
+    /// Name of the spectator server for SourceTV.
     pub name: String,
 }
 

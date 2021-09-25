@@ -17,29 +17,21 @@ const PLAYER_REQUEST: [u8; 5] = [0xff, 0xff, 0xff, 0xff, 0x55];
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct Players {
-    pub count: u8,
-
-    pub players: Vec<Player>,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Player {
-    // Index of player chunk starting from 0.
-    // This seems to be always 0?
+    /// Index of player chunk starting from 0.
+    /// This seems to be always 0?
     pub index: u8,
 
-    // Name of the player.
+    /// Name of the player.
     pub name: String,
 
-    // Player's score (usually "frags" or "kills".)
+    /// Player's score (usually "frags" or "kills".)
     pub score: i32,
 
-    // Time (in seconds) player has been connected to the server.
+    /// Time (in seconds) player has been connected to the server.
     pub duration: f32,
 
-    // The Ship additional player info
+    /// The Ship additional player info
     pub the_ship: Option<TheShipPlayer>,
 }
 
@@ -52,7 +44,7 @@ pub struct TheShipPlayer {
 }
 
 impl A2SClient {
-    fn read_player_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Players> {
+    fn read_player_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Vec<Player>> {
         if data.read_u8()? != 0x44 {
             return Err(Error::InvalidResponse);
         }
@@ -80,10 +72,7 @@ impl A2SClient {
             })
         }
 
-        Ok(Players {
-            count: player_count,
-            players,
-        })
+        Ok(players)
     }
 
     #[cfg(feature = "async")]
@@ -93,7 +82,7 @@ impl A2SClient {
     }
 
     #[cfg(not(feature = "async"))]
-    pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
+    pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Player>> {
         let data = self.do_challenge_request(addr, &PLAYER_REQUEST)?;
         self.read_player_data(Cursor::new(data))
     }
