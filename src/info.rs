@@ -77,6 +77,156 @@ pub struct Info {
     pub source_tv: Option<SourceTVInfo>,
 }
 
+impl Info {
+  pub fn to_bytes(&self) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend(&[0xff, 0xff, 0xff, 0xff, 0x49]);
+    bytes.push(self.protocol);
+    bytes.extend(self.name.as_bytes());
+    bytes.push(0);
+    bytes.extend(self.map.as_bytes());
+    bytes.push(0);
+    bytes.extend(self.folder.as_bytes());
+    bytes.push(0);
+    bytes.extend(self.game.as_bytes());
+    bytes.push(0);
+    bytes.extend(self.app_id.to_le_bytes());
+    bytes.push(self.players);
+    bytes.push(self.max_players);
+    bytes.push(self.bots);
+    bytes.push(self.server_type as u8);
+    bytes.push(self.server_os as u8);
+    bytes.push(if self.visibility { 1 } else { 0});
+    bytes.push(if self.vac { 1 } else { 0});
+
+    if let Some(the_ship) = &self.the_ship {
+      bytes.push(the_ship.mode as u8);
+      bytes.push(the_ship.witnesses);
+      bytes.push(the_ship.duration);
+    }
+
+    bytes.extend(self.version.as_bytes());
+    bytes.push(0);
+
+    if self.edf != 0 {
+      bytes.push(self.edf);
+    }
+
+    if let Some(port) = &self.extended_server_info.port {
+      bytes.extend(port.to_le_bytes());
+    }
+    if let Some(steam_id) = &self.extended_server_info.steam_id {
+      bytes.extend(steam_id.to_le_bytes());
+    }
+    if let Some(keywords) = &self.extended_server_info.keywords {
+      bytes.extend(keywords.as_bytes());
+      bytes.push(0);
+    }
+    if let Some(game_id) = &self.extended_server_info.game_id {
+      bytes.extend(game_id.to_le_bytes());
+    }
+
+    if let Some(source_tv) = &self.source_tv {
+      bytes.extend(source_tv.port.to_le_bytes());
+      bytes.extend(source_tv.name.as_bytes());
+      bytes.push(0);
+    }
+
+    bytes
+  }
+
+  pub fn from_cursor(mut data: Cursor<Vec<u8>>) -> Result<Self> {
+      if data.read_u8()? != 0x49u8 {
+          return Err(Error::InvalidResponse);
+      }
+
+      let protocol = data.read_u8()?;
+      let name = data.read_cstring()?;
+      let map = data.read_cstring()?;
+      let folder = data.read_cstring()?;
+      let game = data.read_cstring()?;
+      let app_id = data.read_u16::<LittleEndian>()?;
+      let players = data.read_u8()?;
+      let max_players = data.read_u8()?;
+      let bots = data.read_u8()?;
+      let server_type = ServerType::try_from(data.read_u8()?)?;
+      let server_os = ServerOS::try_from(data.read_u8()?)?;
+      let visibility = data.read_u8()? != 0;
+      let vac = data.read_u8()? != 0;
+      let the_ship = if app_id == 2400 {
+          Some(TheShip {
+              mode: TheShipMode::from(data.read_u8()?),
+              witnesses: data.read_u8()?,
+              duration: data.read_u8()?,
+          })
+      } else {
+          None
+      };
+      let version = data.read_cstring()?;
+      let edf = match data.read_u8() {
+          Ok(val) => val,
+          Err(err) => {
+              if err.kind() != ErrorKind::UnexpectedEof {
+                  return Err(Error::Io(err));
+              } else {
+                  0
+              }
+          }
+      };
+      let extended_server_info = ExtendedServerInfo {
+          port: if edf & 0x80 != 0 {
+              Some(data.read_u16::<LittleEndian>()?)
+          } else {
+              None
+          },
+          steam_id: if edf & 0x10 != 0 {
+              Some(data.read_u64::<LittleEndian>()?)
+          } else {
+              None
+          },
+          keywords: if edf & 0x20 != 0 {
+              Some(data.read_cstring()?)
+          } else {
+              None
+          },
+          game_id: if edf & 0x01 != 0 {
+              Some(data.read_u64::<LittleEndian>()?)
+          } else {
+              None
+          },
+      };
+      let source_tv = if edf & 0x40 != 0 {
+          Some(SourceTVInfo {
+              port: data.read_u16::<LittleEndian>()?,
+              name: data.read_cstring()?,
+          })
+      } else {
+          None
+      };
+
+      Ok(Info {
+          protocol,
+          name,
+          map,
+          folder,
+          game,
+          app_id,
+          players,
+          max_players,
+          bots,
+          server_type,
+          server_os,
+          visibility,
+          vac,
+          the_ship,
+          version,
+          edf,
+          extended_server_info,
+          source_tv,
+      })
+  }
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TheShip {
@@ -90,16 +240,17 @@ pub struct TheShip {
     pub duration: u8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
 pub enum TheShipMode {
-    Hunt,
-    Elimination,
-    Duel,
-    Deathmatch,
-    VIPTeam,
-    TeamElimination,
-    Unknown,
+    Hunt            =   0,
+    Elimination     =   1,
+    Duel            =   2,
+    Deathmatch      =   3,
+    VIPTeam         =   4,
+    TeamElimination =   5,
+    Unknown         = 255,
 }
 
 impl From<u8> for TheShipMode {
@@ -147,12 +298,13 @@ pub struct SourceTVInfo {
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
 pub enum ServerType {
-    Dedicated,
-    NonDedicated,
-    SourceTV,
+    Dedicated    = b'd',
+    NonDedicated = b'i',
+    SourceTV     = b'p',
 }
 
 impl TryFrom<u8> for ServerType {
@@ -167,12 +319,13 @@ impl TryFrom<u8> for ServerType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
 pub enum ServerOS {
-    Linux,
-    Windows,
-    Mac,
+    Linux   = b'l',
+    Windows = b'w',
+    Mac     = b'm',
 }
 
 impl TryFrom<u8> for ServerOS {
@@ -189,97 +342,6 @@ impl TryFrom<u8> for ServerOS {
 }
 
 impl A2SClient {
-    fn read_info_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Info> {
-        if data.read_u8()? != 0x49u8 {
-            return Err(Error::InvalidResponse);
-        }
-
-        let protocol = data.read_u8()?;
-        let name = data.read_cstring()?;
-        let map = data.read_cstring()?;
-        let folder = data.read_cstring()?;
-        let game = data.read_cstring()?;
-        let app_id = data.read_u16::<LittleEndian>()?;
-        let players = data.read_u8()?;
-        let max_players = data.read_u8()?;
-        let bots = data.read_u8()?;
-        let server_type = ServerType::try_from(data.read_u8()?)?;
-        let server_os = ServerOS::try_from(data.read_u8()?)?;
-        let visibility = data.read_u8()? != 0;
-        let vac = data.read_u8()? != 0;
-        let the_ship = if app_id == 2400 {
-            Some(TheShip {
-                mode: TheShipMode::from(data.read_u8()?),
-                witnesses: data.read_u8()?,
-                duration: data.read_u8()?,
-            })
-        } else {
-            None
-        };
-        let version = data.read_cstring()?;
-        let edf = match data.read_u8() {
-            Ok(val) => val,
-            Err(err) => {
-                if err.kind() != ErrorKind::UnexpectedEof {
-                    return Err(Error::Io(err));
-                } else {
-                    0
-                }
-            }
-        };
-        let extended_server_info = ExtendedServerInfo {
-            port: if edf & 0x80 != 0 {
-                Some(data.read_u16::<LittleEndian>()?)
-            } else {
-                None
-            },
-            steam_id: if edf & 0x10 != 0 {
-                Some(data.read_u64::<LittleEndian>()?)
-            } else {
-                None
-            },
-            keywords: if edf & 0x20 != 0 {
-                Some(data.read_cstring()?)
-            } else {
-                None
-            },
-            game_id: if edf & 0x01 != 0 {
-                Some(data.read_u64::<LittleEndian>()?)
-            } else {
-                None
-            },
-        };
-        let source_tv = if edf & 0x40 != 0 {
-            Some(SourceTVInfo {
-                port: data.read_u16::<LittleEndian>()?,
-                name: data.read_cstring()?,
-            })
-        } else {
-            None
-        };
-
-        Ok(Info {
-            protocol,
-            name,
-            map,
-            folder,
-            game,
-            app_id,
-            players,
-            max_players,
-            bots,
-            server_type,
-            server_os,
-            visibility,
-            vac,
-            the_ship,
-            version,
-            edf,
-            extended_server_info,
-            source_tv,
-        })
-    }
-
     #[cfg(feature = "async")]
     pub async fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
         let response = self.send(&INFO_REQUEST, &addr).await?;
@@ -295,9 +357,9 @@ impl A2SClient {
             query.write_i32::<LittleEndian>(challenge)?;
 
             let data = self.send(&query, addr).await?;
-            self.read_info_data(Cursor::new(data))
+            Info::from_cursor(Cursor::new(data))
         } else {
-            self.read_info_data(Cursor::new(response))
+            Info::from_cursor(Cursor::new(response))
         }
     }
 
@@ -316,9 +378,9 @@ impl A2SClient {
             query.write_i32::<LittleEndian>(challenge)?;
 
             let data = self.send(&query, addr)?;
-            self.read_info_data(Cursor::new(data))
+            Info::from_cursor(Cursor::new(data))
         } else {
-            self.read_info_data(Cursor::new(response))
+            Info::from_cursor(Cursor::new(response))
         }
     }
 }
