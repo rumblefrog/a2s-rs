@@ -46,7 +46,7 @@ impl A2SClient {
     }
 
     #[cfg(feature = "async")]
-    pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Rules> {
+    pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Rule>> {
         let data = self.do_challenge_request(addr, &RULES_REQUEST).await?;
         self.read_rule_data(Cursor::new(data))
     }
