@@ -79,60 +79,60 @@ pub struct Info {
 
 impl Info {
   pub fn to_bytes(&self) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend(&[0xff, 0xff, 0xff, 0xff, 0x49]);
-    bytes.push(self.protocol);
-    bytes.extend(self.name.as_bytes());
-    bytes.push(0);
-    bytes.extend(self.map.as_bytes());
-    bytes.push(0);
-    bytes.extend(self.folder.as_bytes());
-    bytes.push(0);
-    bytes.extend(self.game.as_bytes());
-    bytes.push(0);
-    bytes.extend(self.app_id.to_le_bytes());
-    bytes.push(self.players);
-    bytes.push(self.max_players);
-    bytes.push(self.bots);
-    bytes.push(self.server_type as u8);
-    bytes.push(self.server_os as u8);
-    bytes.push(if self.visibility { 1 } else { 0});
-    bytes.push(if self.vac { 1 } else { 0});
-
-    if let Some(the_ship) = &self.the_ship {
-      bytes.push(the_ship.mode as u8);
-      bytes.push(the_ship.witnesses);
-      bytes.push(the_ship.duration);
-    }
-
-    bytes.extend(self.version.as_bytes());
-    bytes.push(0);
-
-    if self.edf != 0 {
-      bytes.push(self.edf);
-    }
-
-    if let Some(port) = &self.extended_server_info.port {
-      bytes.extend(port.to_le_bytes());
-    }
-    if let Some(steam_id) = &self.extended_server_info.steam_id {
-      bytes.extend(steam_id.to_le_bytes());
-    }
-    if let Some(keywords) = &self.extended_server_info.keywords {
-      bytes.extend(keywords.as_bytes());
+      let mut bytes = Vec::new();
+      bytes.extend(&[0xff, 0xff, 0xff, 0xff, 0x49]);
+      bytes.push(self.protocol);
+      bytes.extend(self.name.as_bytes());
       bytes.push(0);
-    }
-    if let Some(game_id) = &self.extended_server_info.game_id {
-      bytes.extend(game_id.to_le_bytes());
-    }
-
-    if let Some(source_tv) = &self.source_tv {
-      bytes.extend(source_tv.port.to_le_bytes());
-      bytes.extend(source_tv.name.as_bytes());
+      bytes.extend(self.map.as_bytes());
       bytes.push(0);
-    }
+      bytes.extend(self.folder.as_bytes());
+      bytes.push(0);
+      bytes.extend(self.game.as_bytes());
+      bytes.push(0);
+      bytes.extend(self.app_id.to_le_bytes());
+      bytes.push(self.players);
+      bytes.push(self.max_players);
+      bytes.push(self.bots);
+      bytes.push(self.server_type as u8);
+      bytes.push(self.server_os as u8);
+      bytes.push(if self.visibility { 1 } else { 0});
+      bytes.push(if self.vac { 1 } else { 0});
 
-    bytes
+      if let Some(the_ship) = &self.the_ship {
+          bytes.push(the_ship.mode as u8);
+          bytes.push(the_ship.witnesses);
+          bytes.push(the_ship.duration);
+      }
+
+      bytes.extend(self.version.as_bytes());
+      bytes.push(0);
+
+      if self.edf != 0 {
+          bytes.push(self.edf);
+      }
+
+      if let Some(port) = &self.extended_server_info.port {
+          bytes.extend(port.to_le_bytes());
+      }
+      if let Some(steam_id) = &self.extended_server_info.steam_id {
+          bytes.extend(steam_id.to_le_bytes());
+      }
+      if let Some(keywords) = &self.extended_server_info.keywords {
+          bytes.extend(keywords.as_bytes());
+          bytes.push(0);
+      }
+      if let Some(game_id) = &self.extended_server_info.game_id {
+          bytes.extend(game_id.to_le_bytes());
+      }
+
+      if let Some(source_tv) = &self.source_tv {
+          bytes.extend(source_tv.port.to_le_bytes());
+          bytes.extend(source_tv.name.as_bytes());
+          bytes.push(0);
+      }
+
+      bytes
   }
 
   pub fn from_cursor(mut data: Cursor<Vec<u8>>) -> Result<Self> {
