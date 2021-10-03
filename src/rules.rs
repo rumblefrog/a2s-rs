@@ -25,35 +25,37 @@ pub struct Rule {
     pub value: String,
 }
 
+impl Rule {
+  pub fn from_cursor(mut data: Cursor<Vec<u8>>) -> Result<Vec<Self>> {
+      if data.read_u8()? != 0x45 {
+          return Err(Error::InvalidResponse);
+      }
+
+      let count = data.read_u16::<LittleEndian>()?;
+
+      let mut rules: Vec<Rule> = Vec::with_capacity(count as usize);
+
+      for _ in 0..count {
+          rules.push(Rule {
+              name: data.read_cstring()?,
+              value: data.read_cstring()?,
+          })
+      }
+
+      Ok(rules)
+  }
+}
+
 impl A2SClient {
-    fn read_rule_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Vec<Rule>> {
-        if data.read_u8()? != 0x45 {
-            return Err(Error::InvalidResponse);
-        }
-
-        let count = data.read_u16::<LittleEndian>()?;
-
-        let mut rules: Vec<Rule> = Vec::with_capacity(count as usize);
-
-        for _ in 0..count {
-            rules.push(Rule {
-                name: data.read_cstring()?,
-                value: data.read_cstring()?,
-            })
-        }
-
-        Ok(rules)
-    }
-
     #[cfg(feature = "async")]
     pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Rule>> {
         let data = self.do_challenge_request(addr, &RULES_REQUEST).await?;
-        self.read_rule_data(Cursor::new(data))
+        Rule::from_cursor(Cursor::new(data))
     }
 
     #[cfg(not(feature = "async"))]
     pub fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Rule>> {
         let data = self.do_challenge_request(addr, &RULES_REQUEST)?;
-        self.read_rule_data(Cursor::new(data))
+        Rule::from_cursor(Cursor::new(data))
     }
 }
