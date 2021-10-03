@@ -349,7 +349,7 @@ impl A2SClient {
         let mut packet = Cursor::new(&response);
 
         let header = packet.read_u8()?;
-        if header == 'A' as u8 {
+        if header == b'A' {
             let challenge = packet.read_i32::<LittleEndian>()?;
 
             let mut query = Vec::with_capacity(29);
@@ -370,7 +370,7 @@ impl A2SClient {
         let mut packet = Cursor::new(&response);
 
         let header = packet.read_u8()?;
-        if header == 'A' as u8 {
+        if header == b'A' {
             let challenge = packet.read_i32::<LittleEndian>()?;
 
             let mut query = Vec::with_capacity(29);
