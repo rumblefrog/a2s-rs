@@ -21,6 +21,120 @@ const INFO_REQUEST: [u8; 25] = [
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct TheShip {
+    /// Indicates the game mode
+    pub mode: TheShipMode,
+
+    /// The number of witnesses necessary to have a player arrested.
+    pub witnesses: u8,
+
+    /// Time (in seconds) before a player is arrested while being witnessed.
+    pub duration: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum TheShipMode {
+    Hunt            =   0,
+    Elimination     =   1,
+    Duel            =   2,
+    Deathmatch      =   3,
+    VIPTeam         =   4,
+    TeamElimination =   5,
+    Unknown         = 255,
+}
+
+impl From<u8> for TheShipMode {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Self::Hunt,
+            1 => Self::Elimination,
+            2 => Self::Duel,
+            3 => Self::Deathmatch,
+            4 => Self::VIPTeam,
+            5 => Self::TeamElimination,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ExtendedServerInfo {
+    /// The server's game port number.
+    /// Available if edf & 0x80 is true
+    pub port: Option<u16>,
+
+    /// Server's SteamID.
+    /// Available if edf & 0x10 is true
+    pub steam_id: Option<u64>,
+
+    /// Tags that describe the game according to the server (for future use.)
+    /// Available if edf & 0x20 is true
+    pub keywords: Option<String>,
+
+    /// The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
+    /// The earlier AppID could have been truncated as it was forced into 16-bit storage.
+    /// Avaialble if edf & 0x01 is true
+    pub game_id: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct SourceTVInfo {
+    /// Spectator port number for SourceTV.
+    pub port: u16,
+
+    /// Name of the spectator server for SourceTV.
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum ServerType {
+    Dedicated    = b'd',
+    NonDedicated = b'i',
+    SourceTV     = b'p',
+}
+
+impl TryFrom<u8> for ServerType {
+    type Error = Error;
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'd' => Ok(Self::Dedicated),
+            b'i' => Ok(Self::NonDedicated),
+            b'p' => Ok(Self::SourceTV),
+            _ => Err(Self::Error::Other("Invalid server type")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum ServerOS {
+    Linux   = b'l',
+    Windows = b'w',
+    Mac     = b'm',
+}
+
+impl TryFrom<u8> for ServerOS {
+    type Error = Error;
+
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'l' => Ok(Self::Linux),
+            b'w' => Ok(Self::Windows),
+            b'm' | b'o' => Ok(Self::Mac),
+            _ => Err(Self::Error::Other("Invalid environment")),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Info {
     /// Protocol version used by the server.
     pub protocol: u8,
@@ -224,120 +338,6 @@ impl Info {
             extended_server_info,
             source_tv,
         })
-    }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct TheShip {
-    /// Indicates the game mode
-    pub mode: TheShipMode,
-
-    /// The number of witnesses necessary to have a player arrested.
-    pub witnesses: u8,
-
-    /// Time (in seconds) before a player is arrested while being witnessed.
-    pub duration: u8,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[repr(u8)]
-pub enum TheShipMode {
-    Hunt            =   0,
-    Elimination     =   1,
-    Duel            =   2,
-    Deathmatch      =   3,
-    VIPTeam         =   4,
-    TeamElimination =   5,
-    Unknown         = 255,
-}
-
-impl From<u8> for TheShipMode {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Hunt,
-            1 => Self::Elimination,
-            2 => Self::Duel,
-            3 => Self::Deathmatch,
-            4 => Self::VIPTeam,
-            5 => Self::TeamElimination,
-            _ => Self::Unknown,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct ExtendedServerInfo {
-    /// The server's game port number.
-    /// Available if edf & 0x80 is true
-    pub port: Option<u16>,
-
-    /// Server's SteamID.
-    /// Available if edf & 0x10 is true
-    pub steam_id: Option<u64>,
-
-    /// Tags that describe the game according to the server (for future use.)
-    /// Available if edf & 0x20 is true
-    pub keywords: Option<String>,
-
-    /// The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
-    /// The earlier AppID could have been truncated as it was forced into 16-bit storage.
-    /// Avaialble if edf & 0x01 is true
-    pub game_id: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct SourceTVInfo {
-    /// Spectator port number for SourceTV.
-    pub port: u16,
-
-    /// Name of the spectator server for SourceTV.
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[repr(u8)]
-pub enum ServerType {
-    Dedicated    = b'd',
-    NonDedicated = b'i',
-    SourceTV     = b'p',
-}
-
-impl TryFrom<u8> for ServerType {
-    type Error = Error;
-    fn try_from(val: u8) -> Result<Self> {
-        match val {
-            b'd' => Ok(Self::Dedicated),
-            b'i' => Ok(Self::NonDedicated),
-            b'p' => Ok(Self::SourceTV),
-            _ => Err(Self::Error::Other("Invalid server type")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[repr(u8)]
-pub enum ServerOS {
-    Linux   = b'l',
-    Windows = b'w',
-    Mac     = b'm',
-}
-
-impl TryFrom<u8> for ServerOS {
-    type Error = Error;
-
-    fn try_from(val: u8) -> Result<Self> {
-        match val {
-            b'l' => Ok(Self::Linux),
-            b'w' => Ok(Self::Windows),
-            b'm' | b'o' => Ok(Self::Mac),
-            _ => Err(Self::Error::Other("Invalid environment")),
-        }
     }
 }
 
