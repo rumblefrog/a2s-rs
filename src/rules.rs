@@ -25,8 +25,33 @@ pub struct Rule {
     pub value: String,
 }
 
-impl A2SClient {
-    fn read_rule_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Vec<Rule>> {
+impl Rule {
+    pub fn vec_to_bytes(rules: Vec<Self>) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.extend(&[0xff, 0xff, 0xff, 0xff, 0x45]);
+
+        bytes.extend(rules.len().to_le_bytes());
+
+        for rule in rules {
+            bytes.extend(rule.to_bytes());
+        }
+
+        bytes
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.extend(self.name.as_bytes());
+        bytes.push(0);
+        bytes.extend(self.value.as_bytes());
+        bytes.push(0);
+
+        bytes
+    }
+
+    pub fn from_cursor(mut data: Cursor<Vec<u8>>) -> Result<Vec<Self>> {
         if data.read_u8()? != 0x45 {
             return Err(Error::InvalidResponse);
         }
@@ -44,16 +69,18 @@ impl A2SClient {
 
         Ok(rules)
     }
+}
 
+impl A2SClient {
     #[cfg(feature = "async")]
-    pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Rules> {
+    pub async fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Rule>> {
         let data = self.do_challenge_request(addr, &RULES_REQUEST).await?;
-        self.read_rule_data(Cursor::new(data))
+        Rule::from_cursor(Cursor::new(data))
     }
 
     #[cfg(not(feature = "async"))]
     pub fn rules<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Rule>> {
         let data = self.do_challenge_request(addr, &RULES_REQUEST)?;
-        self.read_rule_data(Cursor::new(data))
+        Rule::from_cursor(Cursor::new(data))
     }
 }

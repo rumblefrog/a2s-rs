@@ -21,6 +21,120 @@ const INFO_REQUEST: [u8; 25] = [
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct TheShip {
+    /// Indicates the game mode
+    pub mode: TheShipMode,
+
+    /// The number of witnesses necessary to have a player arrested.
+    pub witnesses: u8,
+
+    /// Time (in seconds) before a player is arrested while being witnessed.
+    pub duration: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum TheShipMode {
+    Hunt            =   0,
+    Elimination     =   1,
+    Duel            =   2,
+    Deathmatch      =   3,
+    VIPTeam         =   4,
+    TeamElimination =   5,
+    Unknown         = 255,
+}
+
+impl From<u8> for TheShipMode {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => Self::Hunt,
+            1 => Self::Elimination,
+            2 => Self::Duel,
+            3 => Self::Deathmatch,
+            4 => Self::VIPTeam,
+            5 => Self::TeamElimination,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ExtendedServerInfo {
+    /// The server's game port number.
+    /// Available if edf & 0x80 is true
+    pub port: Option<u16>,
+
+    /// Server's SteamID.
+    /// Available if edf & 0x10 is true
+    pub steam_id: Option<u64>,
+
+    /// Tags that describe the game according to the server (for future use.)
+    /// Available if edf & 0x20 is true
+    pub keywords: Option<String>,
+
+    /// The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
+    /// The earlier AppID could have been truncated as it was forced into 16-bit storage.
+    /// Avaialble if edf & 0x01 is true
+    pub game_id: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct SourceTVInfo {
+    /// Spectator port number for SourceTV.
+    pub port: u16,
+
+    /// Name of the spectator server for SourceTV.
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum ServerType {
+    Dedicated    = b'd',
+    NonDedicated = b'i',
+    SourceTV     = b'p',
+}
+
+impl TryFrom<u8> for ServerType {
+    type Error = Error;
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'd' => Ok(Self::Dedicated),
+            b'i' => Ok(Self::NonDedicated),
+            b'p' => Ok(Self::SourceTV),
+            _ => Err(Self::Error::Other("Invalid server type")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[repr(u8)]
+pub enum ServerOS {
+    Linux   = b'l',
+    Windows = b'w',
+    Mac     = b'm',
+}
+
+impl TryFrom<u8> for ServerOS {
+    type Error = Error;
+
+    fn try_from(val: u8) -> Result<Self> {
+        match val {
+            b'l' => Ok(Self::Linux),
+            b'w' => Ok(Self::Windows),
+            b'm' | b'o' => Ok(Self::Mac),
+            _ => Err(Self::Error::Other("Invalid environment")),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Info {
     /// Protocol version used by the server.
     pub protocol: u8,
@@ -77,119 +191,65 @@ pub struct Info {
     pub source_tv: Option<SourceTVInfo>,
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct TheShip {
-    /// Indicates the game mode
-    pub mode: TheShipMode,
+impl Info {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend(&[0xff, 0xff, 0xff, 0xff, 0x49]);
+        bytes.push(self.protocol);
+        bytes.extend(self.name.as_bytes());
+        bytes.push(0);
+        bytes.extend(self.map.as_bytes());
+        bytes.push(0);
+        bytes.extend(self.folder.as_bytes());
+        bytes.push(0);
+        bytes.extend(self.game.as_bytes());
+        bytes.push(0);
+        bytes.extend(self.app_id.to_le_bytes());
+        bytes.push(self.players);
+        bytes.push(self.max_players);
+        bytes.push(self.bots);
+        bytes.push(self.server_type as u8);
+        bytes.push(self.server_os as u8);
+        bytes.push(if self.visibility { 1 } else { 0 });
+        bytes.push(if self.vac { 1 } else { 0 });
 
-    /// The number of witnesses necessary to have a player arrested.
-    pub witnesses: u8,
-
-    /// Time (in seconds) before a player is arrested while being witnessed.
-    pub duration: u8,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub enum TheShipMode {
-    Hunt,
-    Elimination,
-    Duel,
-    Deathmatch,
-    VIPTeam,
-    TeamElimination,
-    Unknown,
-}
-
-impl From<u8> for TheShipMode {
-    fn from(v: u8) -> Self {
-        match v {
-            0 => Self::Hunt,
-            1 => Self::Elimination,
-            2 => Self::Duel,
-            3 => Self::Deathmatch,
-            4 => Self::VIPTeam,
-            5 => Self::TeamElimination,
-            _ => Self::Unknown,
+        if let Some(the_ship) = &self.the_ship {
+            bytes.push(the_ship.mode as u8);
+            bytes.push(the_ship.witnesses);
+            bytes.push(the_ship.duration);
         }
-    }
-}
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct ExtendedServerInfo {
-    /// The server's game port number.
-    /// Available if edf & 0x80 is true
-    pub port: Option<u16>,
+        bytes.extend(self.version.as_bytes());
+        bytes.push(0);
 
-    /// Server's SteamID.
-    /// Available if edf & 0x10 is true
-    pub steam_id: Option<u64>,
-
-    /// Tags that describe the game according to the server (for future use.)
-    /// Available if edf & 0x20 is true
-    pub keywords: Option<String>,
-
-    /// The server's 64-bit GameID. If this is present, a more accurate AppID is present in the low 24 bits.
-    /// The earlier AppID could have been truncated as it was forced into 16-bit storage.
-    /// Avaialble if edf & 0x01 is true
-    pub game_id: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct SourceTVInfo {
-    /// Spectator port number for SourceTV.
-    pub port: u16,
-
-    /// Name of the spectator server for SourceTV.
-    pub name: String,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub enum ServerType {
-    Dedicated,
-    NonDedicated,
-    SourceTV,
-}
-
-impl TryFrom<u8> for ServerType {
-    type Error = Error;
-    fn try_from(val: u8) -> Result<Self> {
-        match val {
-            b'd' => Ok(Self::Dedicated),
-            b'i' => Ok(Self::NonDedicated),
-            b'p' => Ok(Self::SourceTV),
-            _ => Err(Self::Error::Other("Invalid server type")),
+        if self.edf != 0 {
+            bytes.push(self.edf);
         }
-    }
-}
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub enum ServerOS {
-    Linux,
-    Windows,
-    Mac,
-}
-
-impl TryFrom<u8> for ServerOS {
-    type Error = Error;
-
-    fn try_from(val: u8) -> Result<Self> {
-        match val {
-            b'l' => Ok(Self::Linux),
-            b'w' => Ok(Self::Windows),
-            b'm' | b'o' => Ok(Self::Mac),
-            _ => Err(Self::Error::Other("Invalid environment")),
+        if let Some(port) = &self.extended_server_info.port {
+            bytes.extend(port.to_le_bytes());
         }
-    }
-}
+        if let Some(steam_id) = &self.extended_server_info.steam_id {
+            bytes.extend(steam_id.to_le_bytes());
+        }
+        if let Some(keywords) = &self.extended_server_info.keywords {
+            bytes.extend(keywords.as_bytes());
+            bytes.push(0);
+        }
+        if let Some(game_id) = &self.extended_server_info.game_id {
+            bytes.extend(game_id.to_le_bytes());
+        }
 
-impl A2SClient {
-    fn read_info_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Info> {
+        if let Some(source_tv) = &self.source_tv {
+            bytes.extend(source_tv.port.to_le_bytes());
+            bytes.extend(source_tv.name.as_bytes());
+            bytes.push(0);
+        }
+
+        bytes
+    }
+
+    pub fn from_cursor(mut data: Cursor<Vec<u8>>) -> Result<Self> {
         if data.read_u8()? != 0x49u8 {
             return Err(Error::InvalidResponse);
         }
@@ -279,7 +339,9 @@ impl A2SClient {
             source_tv,
         })
     }
+}
 
+impl A2SClient {
     #[cfg(feature = "async")]
     pub async fn info<A: ToSocketAddrs>(&self, addr: A) -> Result<Info> {
         let response = self.send(&INFO_REQUEST, &addr).await?;
@@ -287,7 +349,7 @@ impl A2SClient {
         let mut packet = Cursor::new(&response);
 
         let header = packet.read_u8()?;
-        if header == 'A' as u8 {
+        if header == b'A' {
             let challenge = packet.read_i32::<LittleEndian>()?;
 
             let mut query = Vec::with_capacity(29);
@@ -295,9 +357,9 @@ impl A2SClient {
             query.write_i32::<LittleEndian>(challenge)?;
 
             let data = self.send(&query, addr).await?;
-            self.read_info_data(Cursor::new(data))
+            Info::from_cursor(Cursor::new(data))
         } else {
-            self.read_info_data(Cursor::new(response))
+            Info::from_cursor(Cursor::new(response))
         }
     }
 
@@ -308,7 +370,7 @@ impl A2SClient {
         let mut packet = Cursor::new(&response);
 
         let header = packet.read_u8()?;
-        if header == 'A' as u8 {
+        if header == b'A' {
             let challenge = packet.read_i32::<LittleEndian>()?;
 
             let mut query = Vec::with_capacity(29);
@@ -316,9 +378,9 @@ impl A2SClient {
             query.write_i32::<LittleEndian>(challenge)?;
 
             let data = self.send(&query, addr)?;
-            self.read_info_data(Cursor::new(data))
+            Info::from_cursor(Cursor::new(data))
         } else {
-            self.read_info_data(Cursor::new(response))
+            Info::from_cursor(Cursor::new(response))
         }
     }
 }

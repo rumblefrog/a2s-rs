@@ -76,7 +76,7 @@ impl A2SClient {
     }
 
     #[cfg(feature = "async")]
-    pub async fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Players> {
+    pub async fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Player>> {
         let data = self.do_challenge_request(addr, &PLAYER_REQUEST).await?;
         self.read_player_data(Cursor::new(data))
     }
