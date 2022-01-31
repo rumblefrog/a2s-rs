@@ -43,24 +43,24 @@ pub struct TheShipPlayer {
     pub money: u32,
 }
 
-impl A2SClient {
-    fn read_player_data(&self, mut data: Cursor<Vec<u8>>) -> Result<Vec<Player>> {
+impl Player {
+    pub fn from_cursor(mut data: Cursor<Vec<u8>>, app_id: u16) -> Result<Vec<Self>> {
         if data.read_u8()? != 0x44 {
             return Err(Error::InvalidResponse);
         }
 
         let player_count = data.read_u8()?;
 
-        let mut players: Vec<Player> = Vec::with_capacity(player_count as usize);
+        let mut players: Vec<Self> = Vec::with_capacity(player_count as usize);
 
         for _ in 0..player_count {
-            players.push(Player {
+            players.push(Self {
                 index: data.read_u8()?,
                 name: data.read_cstring()?,
                 score: data.read_i32::<LittleEndian>()?,
                 duration: data.read_f32::<LittleEndian>()?,
                 the_ship: {
-                    if self.app_id == 2400 {
+                    if app_id == 2400 {
                         Some(TheShipPlayer {
                             deaths: data.read_u32::<LittleEndian>()?,
                             money: data.read_u32::<LittleEndian>()?,
@@ -74,16 +74,18 @@ impl A2SClient {
 
         Ok(players)
     }
+}
 
+impl A2SClient {
     #[cfg(feature = "async")]
     pub async fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Player>> {
         let data = self.do_challenge_request(addr, &PLAYER_REQUEST).await?;
-        self.read_player_data(Cursor::new(data))
+        Player::from_cursor(Cursor::new(data), self.app_id)
     }
 
     #[cfg(not(feature = "async"))]
     pub fn players<A: ToSocketAddrs>(&self, addr: A) -> Result<Vec<Player>> {
         let data = self.do_challenge_request(addr, &PLAYER_REQUEST)?;
-        self.read_player_data(Cursor::new(data))
+        Player::from_cursor(Cursor::new(data), self.app_id)
     }
 }
