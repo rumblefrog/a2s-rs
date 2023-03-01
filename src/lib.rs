@@ -23,6 +23,48 @@ use crate::errors::{Error, Result};
 const SINGLE_PACKET: i32 = -1;
 const MULTI_PACKET: i32 = -2;
 
+// Offsets
+const OFS_HEADER: usize             =  0;
+const OFS_SP_PAYLOAD: usize         =  4;
+const OFS_MP_ID: usize              =  4;
+const OFS_MP_SS_TOTAL: usize        =  8;
+const OFS_MP_SS_NUMBER: usize       =  9;
+const OFS_MP_SS_SIZE: usize         = 10;
+const OFS_MP_SS_BZ2_SIZE: usize     = 12;
+const OFS_MP_SS_BZ2_CRC: usize      = 16;
+const OFS_MP_SS_PAYLOAD: usize      = OFS_MP_SS_BZ2_SIZE;
+const OFS_MP_SS_PAYLOAD_BZ2: usize  = OFS_MP_SS_BZ2_CRC + 4;
+
+macro_rules! read_buffer_offset {
+    ($buf:expr, $offset:expr, i8) => (
+        $buf[$offset].into()
+    );
+    ($buf:expr, $offset:expr, u8) => (
+        $buf[$offset].into()
+    );
+    ($buf:expr, $offset:expr, i16) => (
+        i16::from_le_bytes([$buf[$offset], $buf[$offset + 1]])
+    );
+    ($buf:expr, $offset:expr, u16) => (
+        u16::from_le_bytes([$buf[$offset], $buf[$offset + 1]])
+    );
+    ($buf:expr, $offset:expr, i32) => (
+        i32::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3]])
+    );
+    ($buf:expr, $offset:expr, u32) => (
+        u32::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3]])
+    );
+    ($buf:expr, $offset:expr, i64) => (
+        i64::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3],
+                            $buf[$offset + 4], $buf[$offset + 5], $buf[$offset + 6], $buf[$offset + 7]])
+    );
+    ($buf:expr, $offset:expr, u64) => (
+        u64::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3],
+                            $buf[$offset + 4], $buf[$offset + 5], $buf[$offset + 6], $buf[$offset + 7]])
+    )
+}
+
+#[derive(Debug)]
 struct PacketFragment {
     number: u8,
     payload: Vec<u8>,
@@ -213,49 +255,57 @@ impl A2SClient {
         let mut data = vec![0; self.max_size];
 
         let read = self.socket.recv(&mut data)?;
+        data.truncate(read);
 
-        let header = LittleEndian::read_i32(&data);
+        let header = read_buffer_offset!(&data, OFS_HEADER, i32);
 
         if header == SINGLE_PACKET {
-            data.remove(0);
-            data.remove(0);
-            data.remove(0);
-            data.remove(0);
-
-            data.truncate(read);
-
-            Ok(data)
+            Ok(data[OFS_SP_PAYLOAD..].to_vec())
         } else if header == MULTI_PACKET {
             // ID - long (4 bytes)
             // Total - byte (1 byte)
             // Number - byte (1 byte)
             // Size - short (2 bytes)
 
-            let id = LittleEndian::read_i32(&data[4..8]);
-            let total_packets: usize = data[4] as usize;
-            let switching_size: usize = LittleEndian::read_i16(&data[8..10]) as usize;
+            let id = read_buffer_offset!(&data, OFS_MP_ID, i32);
+            let total_packets: usize = data[OFS_MP_SS_TOTAL].into();
+            let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
 
-            let mut packets: Vec<PacketFragment> = Vec::with_capacity(total_packets);
+            // Sanity check
+            if (switching_size > self.max_size) || (total_packets > 32) {
+                return Err(Error::InvalidResponse)
+            }
+
+            let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
+            packets.try_reserve(total_packets)?;
+            packets.push(PacketFragment {
+                number: data[OFS_MP_SS_NUMBER],
+                // The first packet seems to include a single packet header (0xFFFFFFFF) for some
+                // reason, so we'd rather skip that (hence +4)
+                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD+4..]),
+            });
 
             loop {
-                let mut data = vec![0u8; switching_size];
+                let mut data: Vec<u8> = Vec::with_capacity(0);
+                data.try_reserve(switching_size)?;
+                data.resize(switching_size, 0);
 
                 let read = self.socket.recv(&mut data)?;
+                data.truncate(read);
 
-                if read < data.len() {
-                    data.truncate(read);
+                if data.len() <= 9 {
+                    Err(Error::InvalidResponse)?
                 }
 
-                // Skip header field (4 bytes 0..4)
-                let packet_id = LittleEndian::read_i32(&data[4..8]);
+                let packet_id = read_buffer_offset!(&data, OFS_MP_ID, i32);
 
                 if packet_id != id {
                     return Err(Error::MismatchID);
                 }
 
                 packets.push(PacketFragment {
-                    number: data[10],
-                    payload: Vec::from(&data[12..]),
+                    number: data[OFS_MP_SS_NUMBER],
+                    payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
                 });
 
                 if packets.len() == total_packets {
@@ -265,16 +315,12 @@ impl A2SClient {
 
             packets.sort_by_key(|p| p.number);
 
-            let mut aggregation = Vec::with_capacity(total_packets * self.max_size);
+            let mut aggregation = Vec::with_capacity(0);
+            aggregation.try_reserve(total_packets * self.max_size)?;
 
             for p in packets {
                 aggregation.extend(p.payload);
             }
-
-            aggregation.remove(0);
-            aggregation.remove(0);
-            aggregation.remove(0);
-            aggregation.remove(0);
 
             if id as u32 & 0x80000000 != 0 {
                 let decompressed_size = LittleEndian::read_i32(&data[0..4]);
