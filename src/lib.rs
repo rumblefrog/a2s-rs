@@ -14,7 +14,7 @@ use tokio::net::{ToSocketAddrs, UdpSocket};
 #[cfg(feature = "async")]
 use tokio::time;
 
-use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use bzip2::read::BzDecoder;
 use crc::crc32;
 
@@ -303,10 +303,20 @@ impl A2SClient {
                     return Err(Error::MismatchID);
                 }
 
-                packets.push(PacketFragment {
-                    number: data[OFS_MP_SS_NUMBER],
-                    payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
-                });
+                if id as u32 & 0x80000000 == 0 {
+                    // Uncompressed packet
+                    packets.push(PacketFragment {
+                        number: data[OFS_MP_SS_NUMBER],
+                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
+                    });
+                }
+                else {
+                    // BZip2 compressed packet
+                    packets.push(PacketFragment {
+                        number: data[OFS_MP_SS_NUMBER],
+                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD_BZ2..]),
+                    });
+                }
 
                 if packets.len() == total_packets {
                     break;
@@ -323,18 +333,20 @@ impl A2SClient {
             }
 
             if id as u32 & 0x80000000 != 0 {
-                let decompressed_size = LittleEndian::read_i32(&data[0..4]);
-                let checksum = LittleEndian::read_i32(&data[4..8]);
+                let decompressed_size = read_buffer_offset!(&data, OFS_MP_SS_BZ2_SIZE, u32);
+                let checksum = read_buffer_offset!(&data, OFS_MP_SS_BZ2_CRC, u32);
 
                 if decompressed_size > (1024 * 1024) {
                     return Err(Error::InvalidBz2Size);
                 }
 
-                let mut decompressed = Vec::with_capacity(total_packets * self.max_size);
+                let mut decompressed = Vec::with_capacity(0);
+                decompressed.try_reserve(decompressed_size as usize)?;
+                decompressed.resize(decompressed_size as usize, 0);
 
                 BzDecoder::new(aggregation.deref()).read_exact(&mut decompressed)?;
 
-                if crc32::checksum_ieee(&decompressed) != checksum as u32 {
+                if crc32::checksum_ieee(&decompressed) != checksum {
                     return Err(Error::CheckSumMismatch);
                 }
 
