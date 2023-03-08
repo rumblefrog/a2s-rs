@@ -131,50 +131,70 @@ impl A2SClient {
         future_timeout!(self.timeout, self.socket.send_to(payload, addr))?;
 
         let mut data = vec![0; self.max_size];
+
         let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
-        let header = LittleEndian::read_i32(&data);
+        data.truncate(read);
+
+        let header = read_buffer_offset!(&data, OFS_HEADER, i32);
 
         if header == SINGLE_PACKET {
-            data.remove(0);
-            data.remove(0);
-            data.remove(0);
-            data.remove(0);
-
-            data.truncate(read);
-
-            Ok(data)
+            Ok(data[OFS_SP_PAYLOAD..].to_vec())
         } else if header == MULTI_PACKET {
             // ID - long (4 bytes)
             // Total - byte (1 byte)
             // Number - byte (1 byte)
             // Size - short (2 bytes)
 
-            let id = LittleEndian::read_i32(&data[4..8]);
-            let total_packets: usize = data[4] as usize;
-            let switching_size: usize = LittleEndian::read_i16(&data[8..10]) as usize;
+            let id = read_buffer_offset!(&data, OFS_MP_ID, i32);
+            let total_packets: usize = data[OFS_MP_SS_TOTAL].into();
+            let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
 
-            let mut packets: Vec<PacketFragment> = Vec::with_capacity(total_packets);
+            // Sanity check
+            if (switching_size > self.max_size) || (total_packets > 32) {
+                return Err(Error::InvalidResponse)
+            }
+
+            let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
+            packets.try_reserve(total_packets)?;
+            packets.push(PacketFragment {
+                number: data[OFS_MP_SS_NUMBER],
+                // The first packet seems to include a single packet header (0xFFFFFFFF) for some
+                // reason, so we'd rather skip that (hence +4)
+                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD+4..]),
+            });
 
             loop {
-                let mut data = vec![0u8; switching_size];
+                let mut data: Vec<u8> = Vec::with_capacity(0);
+                data.try_reserve(switching_size)?;
+                data.resize(switching_size, 0);
 
                 let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
+                data.truncate(read);
 
-                if read < data.len() {
-                    data.truncate(read);
+                if data.len() <= 9 {
+                    Err(Error::InvalidResponse)?
                 }
 
-                // Skip header field (4 bytes 0..4)
-                let packet_id = LittleEndian::read_i32(&data[4..8]);
+                let packet_id = read_buffer_offset!(&data, OFS_MP_ID, i32);
 
                 if packet_id != id {
                     return Err(Error::MismatchID);
                 }
 
-                packets.push(PacketFragment {
-                    number: data[10],
-                    payload: Vec::from(&data[12..]),
-                });
+                if id as u32 & 0x80000000 == 0 {
+                    // Uncompressed packet
+                    packets.push(PacketFragment {
+                        number: data[OFS_MP_SS_NUMBER],
+                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
+                    });
+                }
+                else {
+                    // BZip2 compressed packet
+                    packets.push(PacketFragment {
+                        number: data[OFS_MP_SS_NUMBER],
+                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD_BZ2..]),
+                    });
+                }
 
                 if packets.len() == total_packets {
                     break;
@@ -183,30 +203,28 @@ impl A2SClient {
 
             packets.sort_by_key(|p| p.number);
 
-            let mut aggregation = Vec::with_capacity(total_packets * self.max_size);
+            let mut aggregation = Vec::with_capacity(0);
+            aggregation.try_reserve(total_packets * self.max_size)?;
 
             for p in packets {
                 aggregation.extend(p.payload);
             }
 
-            aggregation.remove(0);
-            aggregation.remove(0);
-            aggregation.remove(0);
-            aggregation.remove(0);
-
             if id as u32 & 0x80000000 != 0 {
-                let decompressed_size = LittleEndian::read_i32(&data[0..4]);
-                let checksum = LittleEndian::read_i32(&data[4..8]);
+                let decompressed_size = read_buffer_offset!(&data, OFS_MP_SS_BZ2_SIZE, u32);
+                let checksum = read_buffer_offset!(&data, OFS_MP_SS_BZ2_CRC, u32);
 
                 if decompressed_size > (1024 * 1024) {
                     return Err(Error::InvalidBz2Size);
                 }
 
-                let mut decompressed = Vec::with_capacity(total_packets * self.max_size);
+                let mut decompressed = Vec::with_capacity(0);
+                decompressed.try_reserve(decompressed_size as usize)?;
+                decompressed.resize(decompressed_size as usize, 0);
 
-                BzDecoder::new(aggregation.deref()).read(&mut decompressed)?;
+                BzDecoder::new(aggregation.deref()).read_exact(&mut decompressed)?;
 
-                if crc32::checksum_ieee(&decompressed) != checksum as u32 {
+                if crc32::checksum_ieee(&decompressed) != checksum {
                     return Err(Error::CheckSumMismatch);
                 }
 
