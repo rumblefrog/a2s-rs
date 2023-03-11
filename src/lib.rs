@@ -71,7 +71,6 @@ struct PacketFragment {
 }
 
 pub struct A2SClient {
-    socket: UdpSocket,
     #[cfg(feature = "async")]
     timeout: Duration,
     max_size: usize,
@@ -106,11 +105,8 @@ impl A2SClient {
 
     #[cfg(feature = "async")]
     pub async fn new() -> Result<A2SClient> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-
         Ok(A2SClient {
-            socket: socket,
-            timeout: Duration::new(5, 0),
+            timeout: Duration::new(15, 0),
             max_size: 1400,
             app_id: 0,
         })
@@ -128,11 +124,12 @@ impl A2SClient {
 
     #[cfg(feature = "async")]
     async fn send<A: ToSocketAddrs>(&self, payload: &[u8], addr: A) -> Result<Vec<u8>> {
-        future_timeout!(self.timeout, self.socket.send_to(payload, addr))?;
+        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        future_timeout!(self.timeout, socket.send_to(payload, addr))?;
 
         let mut data = vec![0; self.max_size];
 
-        let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
+        let read = future_timeout!(self.timeout, socket.recv(&mut data))?;
         data.truncate(read);
 
         let header = read_buffer_offset!(&data, OFS_HEADER, i32);
@@ -168,7 +165,7 @@ impl A2SClient {
                 data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
-                let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
+                let read = future_timeout!(self.timeout, socket.recv(&mut data))?;
                 data.truncate(read);
 
                 if data.len() <= 9 {
