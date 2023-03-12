@@ -71,6 +71,8 @@ struct PacketFragment {
 }
 
 pub struct A2SClient {
+    #[cfg(not(feature = "async"))]
+    socket: UdpSocket,
     #[cfg(feature = "async")]
     timeout: Duration,
     max_size: usize,
