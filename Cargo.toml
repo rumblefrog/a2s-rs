@@ -16,10 +16,17 @@ bzip2 = "0.3"
 crc = "1"
 thiserror = "1"
 
+[dev-dependencies]
+futures = "0.3.27"
+
 [dependencies.tokio]
 version = "1"
 features = ["net", "time"]
 optional = true
+
+[dev-dependencies.tokio]
+version = "1"
+features = ["macros", "rt"]
 
 [dependencies.serde]
 version = "1"
