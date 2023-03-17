@@ -7,6 +7,9 @@ pub enum Error {
     #[error("IO error {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("Failed to reserve memory {0}")]
+    TryReserveError(#[from] std::collections::TryReserveError),
+
     #[error("Socket timed out")]
     ErrTimeout,
 
