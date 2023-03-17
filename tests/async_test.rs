@@ -31,15 +31,16 @@ async fn test_async_multipleservers() {
         "play.maxdb.net:27015",
         "ebateam.eu:27019",
         "92.80.103.133:27021",
-        "186.19.99.1:27024"
-    ].into_iter()
-        .map(lookup_host);
-    let addresses = future::join_all(addresses).await
-        .into_iter()
-        .flat_map(|a| a.unwrap().into_iter().flat_map(|sa| match sa {
+        "186.19.99.1:27024",
+    ]
+    .into_iter()
+    .map(lookup_host);
+    let addresses = future::join_all(addresses).await.into_iter().flat_map(|a| {
+        a.unwrap().into_iter().flat_map(|sa| match sa {
             SocketAddr::V4(sa4) => Some(sa4),
-            _ => None
-        }));
+            _ => None,
+        })
+    });
     let fut = addresses.map(|a| {
         println!("Addr: {a}");
         client.info(a)

@@ -36,13 +36,13 @@ pub struct TheShip {
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[repr(u8)]
 pub enum TheShipMode {
-    Hunt            =   0,
-    Elimination     =   1,
-    Duel            =   2,
-    Deathmatch      =   3,
-    VIPTeam         =   4,
-    TeamElimination =   5,
-    Unknown         = 255,
+    Hunt = 0,
+    Elimination = 1,
+    Duel = 2,
+    Deathmatch = 3,
+    VIPTeam = 4,
+    TeamElimination = 5,
+    Unknown = 255,
 }
 
 impl From<u8> for TheShipMode {
@@ -94,9 +94,9 @@ pub struct SourceTVInfo {
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[repr(u8)]
 pub enum ServerType {
-    Dedicated    = b'd',
+    Dedicated = b'd',
     NonDedicated = b'i',
-    SourceTV     = b'p',
+    SourceTV = b'p',
 }
 
 impl TryFrom<u8> for ServerType {
@@ -115,9 +115,9 @@ impl TryFrom<u8> for ServerType {
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[repr(u8)]
 pub enum ServerOS {
-    Linux   = b'l',
+    Linux = b'l',
     Windows = b'w',
-    Mac     = b'm',
+    Mac = b'm',
 }
 
 impl TryFrom<u8> for ServerOS {

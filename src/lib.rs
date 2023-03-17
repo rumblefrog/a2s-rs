@@ -24,44 +24,70 @@ const SINGLE_PACKET: i32 = -1;
 const MULTI_PACKET: i32 = -2;
 
 // Offsets
-const OFS_HEADER: usize             =  0;
-const OFS_SP_PAYLOAD: usize         =  4;
-const OFS_MP_ID: usize              =  4;
-const OFS_MP_SS_TOTAL: usize        =  8;
-const OFS_MP_SS_NUMBER: usize       =  9;
-const OFS_MP_SS_SIZE: usize         = 10;
-const OFS_MP_SS_BZ2_SIZE: usize     = 12;
-const OFS_MP_SS_BZ2_CRC: usize      = 16;
-const OFS_MP_SS_PAYLOAD: usize      = OFS_MP_SS_BZ2_SIZE;
-const OFS_MP_SS_PAYLOAD_BZ2: usize  = OFS_MP_SS_BZ2_CRC + 4;
+const OFS_HEADER: usize = 0;
+const OFS_SP_PAYLOAD: usize = 4;
+const OFS_MP_ID: usize = 4;
+const OFS_MP_SS_TOTAL: usize = 8;
+const OFS_MP_SS_NUMBER: usize = 9;
+const OFS_MP_SS_SIZE: usize = 10;
+const OFS_MP_SS_BZ2_SIZE: usize = 12;
+const OFS_MP_SS_BZ2_CRC: usize = 16;
+const OFS_MP_SS_PAYLOAD: usize = OFS_MP_SS_BZ2_SIZE;
+const OFS_MP_SS_PAYLOAD_BZ2: usize = OFS_MP_SS_BZ2_CRC + 4;
 
 macro_rules! read_buffer_offset {
-    ($buf:expr, $offset:expr, i8) => (
+    ($buf:expr, $offset:expr, i8) => {
         $buf[$offset].into()
-    );
-    ($buf:expr, $offset:expr, u8) => (
+    };
+    ($buf:expr, $offset:expr, u8) => {
         $buf[$offset].into()
-    );
-    ($buf:expr, $offset:expr, i16) => (
+    };
+    ($buf:expr, $offset:expr, i16) => {
         i16::from_le_bytes([$buf[$offset], $buf[$offset + 1]])
-    );
-    ($buf:expr, $offset:expr, u16) => (
+    };
+    ($buf:expr, $offset:expr, u16) => {
         u16::from_le_bytes([$buf[$offset], $buf[$offset + 1]])
-    );
-    ($buf:expr, $offset:expr, i32) => (
-        i32::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3]])
-    );
-    ($buf:expr, $offset:expr, u32) => (
-        u32::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3]])
-    );
-    ($buf:expr, $offset:expr, i64) => (
-        i64::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3],
-                            $buf[$offset + 4], $buf[$offset + 5], $buf[$offset + 6], $buf[$offset + 7]])
-    );
-    ($buf:expr, $offset:expr, u64) => (
-        u64::from_le_bytes([$buf[$offset], $buf[$offset + 1], $buf[$offset + 2], $buf[$offset + 3],
-                            $buf[$offset + 4], $buf[$offset + 5], $buf[$offset + 6], $buf[$offset + 7]])
-    )
+    };
+    ($buf:expr, $offset:expr, i32) => {
+        i32::from_le_bytes([
+            $buf[$offset],
+            $buf[$offset + 1],
+            $buf[$offset + 2],
+            $buf[$offset + 3],
+        ])
+    };
+    ($buf:expr, $offset:expr, u32) => {
+        u32::from_le_bytes([
+            $buf[$offset],
+            $buf[$offset + 1],
+            $buf[$offset + 2],
+            $buf[$offset + 3],
+        ])
+    };
+    ($buf:expr, $offset:expr, i64) => {
+        i64::from_le_bytes([
+            $buf[$offset],
+            $buf[$offset + 1],
+            $buf[$offset + 2],
+            $buf[$offset + 3],
+            $buf[$offset + 4],
+            $buf[$offset + 5],
+            $buf[$offset + 6],
+            $buf[$offset + 7],
+        ])
+    };
+    ($buf:expr, $offset:expr, u64) => {
+        u64::from_le_bytes([
+            $buf[$offset],
+            $buf[$offset + 1],
+            $buf[$offset + 2],
+            $buf[$offset + 3],
+            $buf[$offset + 4],
+            $buf[$offset + 5],
+            $buf[$offset + 6],
+            $buf[$offset + 7],
+        ])
+    };
 }
 
 #[derive(Debug)]
@@ -150,7 +176,7 @@ impl A2SClient {
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
-                return Err(Error::InvalidResponse)
+                return Err(Error::InvalidResponse);
             }
 
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
@@ -159,7 +185,7 @@ impl A2SClient {
                 number: data[OFS_MP_SS_NUMBER],
                 // The first packet seems to include a single packet header (0xFFFFFFFF) for some
                 // reason, so we'd rather skip that (hence +4)
-                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD+4..]),
+                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD + 4..]),
             });
 
             loop {
@@ -186,8 +212,7 @@ impl A2SClient {
                         number: data[OFS_MP_SS_NUMBER],
                         payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
                     });
-                }
-                else {
+                } else {
                     // BZip2 compressed packet
                     packets.push(PacketFragment {
                         number: data[OFS_MP_SS_NUMBER],
@@ -290,7 +315,7 @@ impl A2SClient {
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
-                return Err(Error::InvalidResponse)
+                return Err(Error::InvalidResponse);
             }
 
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
@@ -299,7 +324,7 @@ impl A2SClient {
                 number: data[OFS_MP_SS_NUMBER],
                 // The first packet seems to include a single packet header (0xFFFFFFFF) for some
                 // reason, so we'd rather skip that (hence +4)
-                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD+4..]),
+                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD + 4..]),
             });
 
             loop {
@@ -326,8 +351,7 @@ impl A2SClient {
                         number: data[OFS_MP_SS_NUMBER],
                         payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
                     });
-                }
-                else {
+                } else {
                     // BZip2 compressed packet
                     packets.push(PacketFragment {
                         number: data[OFS_MP_SS_NUMBER],
