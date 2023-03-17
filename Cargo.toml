@@ -12,7 +12,7 @@ keywords = ["steam", "query"]
 
 [dependencies]
 byteorder = "1"
-bzip2 = "0.3"
+bzip2 = "0.4.4"
 crc = "1"
 thiserror = "1"
 
