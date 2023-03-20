@@ -27,3 +27,14 @@ fn test_rules_multipacket2() {
 
     println!("{:?}", result);
 }
+
+#[cfg(not(feature = "async"))]
+#[test]
+fn test_rules_goldsource() {
+    let client = a2s::A2SClient::new().unwrap();
+
+    // Only servers providing multipacket responses are relevant for GoldSource tests
+    let result = client.rules("45.83.244.193:27015").unwrap();
+
+    println!("{:?}", result);
+}

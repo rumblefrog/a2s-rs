@@ -52,3 +52,15 @@ async fn test_async_multipleservers() {
         fut = remaining;
     }
 }
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn test_async_goldsource() {
+    let address = "45.83.244.193:27015";
+    let client = A2SClient::new().await.unwrap();
+    let info = client.info(&address);
+    let rules = client.rules(&address);
+    let players = client.players(&address);
+    let (info, rules, players) = try_join!(info, rules, players).unwrap();
+    println!("{:?}\n{:?}\n{:?}", info, rules, players);
+}
