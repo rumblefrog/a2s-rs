@@ -56,11 +56,25 @@ async fn test_async_multipleservers() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_async_goldsource() {
+    // Only servers providing multipacket responses are relevant for GoldSource tests
     let address = "45.83.244.193:27015";
     let client = A2SClient::new().await.unwrap();
     let info = client.info(&address);
     let rules = client.rules(&address);
     let players = client.players(&address);
     let (info, rules, players) = try_join!(info, rules, players).unwrap();
-    println!("{:?}\n{:?}\n{:?}", info, rules, players);
+    println!("Addr: {}\n{:?}\n{:?}\n{:?}", address, info, rules, players);
+}
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn test_async_goldsource2() {
+    // Only servers providing multipacket responses are relevant for GoldSource tests
+    let address = "145.239.108.67:27025";
+    let client = A2SClient::new().await.unwrap();
+    let info = client.info(&address);
+    let rules = client.rules(&address);
+    let players = client.players(&address);
+    let (info, rules, players) = try_join!(info, rules, players).unwrap();
+    println!("Addr: {}\n{:?}\n{:?}\n{:?}", address, info, rules, players);
 }

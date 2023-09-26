@@ -171,27 +171,49 @@ impl A2SClient {
         if header == SINGLE_PACKET {
             Ok(data[OFS_SP_PAYLOAD..].to_vec())
         } else if header == MULTI_PACKET {
-            // ID - long (4 bytes)
-            // Total - byte (1 byte)
-            // Number - byte (1 byte)
-            // Size - short (2 bytes)
-
             let id = read_buffer_offset!(&data, OFS_MP_ID, i32);
-            let total_packets: usize = data[OFS_MP_SS_TOTAL].into();
-            let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
+
+            // Try to interpret the package as GoldSource
+            // Note: this won't work if the packets arrive out of order
+            let (total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
+                // ID - long (4 bytes)
+                // Packet number - byte (1 byte):
+                //      high nibble - number of the current packet
+                //      low nibble  - total number of packets
+                let total_packets: usize = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) & 0x0F).into();
+                let number: u8 = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into();
+                let switching_size: usize = self.max_size;
+                (total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
+            }
+            // Seems like a Source packet
+            else {
+                // ID - long (4 bytes)
+                // Total - byte (1 byte)
+                // Number - byte (1 byte)
+                // Size - short (2 bytes)
+                let total_packets: usize = read_buffer_offset!(&data, OFS_MP_SS_TOTAL, u8).into();
+                let number: u8 = read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into();
+                let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
+                (total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
+            };
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
                 return Err(Error::InvalidResponse);
             }
 
+            if number != 0 {
+                // Packets out of order!
+                return Err(Error::InvalidResponse);
+            }
+
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
             packets.try_reserve(total_packets)?;
             packets.push(PacketFragment {
-                number: data[OFS_MP_SS_NUMBER],
+                number,
                 // The first packet seems to include a single packet header (0xFFFFFFFF) for some
                 // reason, so we'd rather skip that (hence +4)
-                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD + 4..]),
+                payload: Vec::from(&data[ofs_payload + 4..]),
             });
 
             loop {
@@ -215,8 +237,8 @@ impl A2SClient {
                 if id as u32 & 0x80000000 == 0 {
                     // Uncompressed packet
                     packets.push(PacketFragment {
-                        number: data[OFS_MP_SS_NUMBER],
-                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
+                        number,
+                        payload: Vec::from(&data[ofs_payload..]),
                     });
                 } else {
                     // BZip2 compressed packet
@@ -324,7 +346,7 @@ impl A2SClient {
                 let switching_size: usize = self.max_size;
                 (total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
             }
-            // Rather seems like a Source packet
+            // Seems like a Source packet
             else {
                 // ID - long (4 bytes)
                 // Total - byte (1 byte)
@@ -338,6 +360,11 @@ impl A2SClient {
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
+                return Err(Error::InvalidResponse);
+            }
+
+            if number != 0 {
+                // Packets out of order!
                 return Err(Error::InvalidResponse);
             }
 
