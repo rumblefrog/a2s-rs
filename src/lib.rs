@@ -175,7 +175,7 @@ impl A2SClient {
 
             // Try to interpret the package as GoldSource
             // Note: this won't work if the packets arrive out of order
-            let (total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
+            let (is_goldsource, total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
                 // ID - long (4 bytes)
                 // Packet number - byte (1 byte):
                 //      high nibble - number of the current packet
@@ -183,7 +183,7 @@ impl A2SClient {
                 let total_packets: usize = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) & 0x0F).into();
                 let number: u8 = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into();
                 let switching_size: usize = self.max_size;
-                (total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
+                (true, total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
             }
             // Seems like a Source packet
             else {
@@ -193,8 +193,8 @@ impl A2SClient {
                 // Size - short (2 bytes)
                 let total_packets: usize = read_buffer_offset!(&data, OFS_MP_SS_TOTAL, u8).into();
                 let number: u8 = read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into();
-                let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
-                (total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
+                let switching_size: usize = (read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16) + OFS_MP_SS_PAYLOAD as u16).into();
+                (false, total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
             };
 
             // Sanity check
@@ -216,9 +216,10 @@ impl A2SClient {
                 payload: Vec::from(&data[ofs_payload + 4..]),
             });
 
+            let mut data: Vec<u8> = Vec::with_capacity(0);
+            data.try_reserve(switching_size)?;
+
             loop {
-                let mut data: Vec<u8> = Vec::with_capacity(0);
-                data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
                 let read = future_timeout!(self.timeout, socket.recv(&mut data))?;
@@ -234,6 +235,12 @@ impl A2SClient {
                     return Err(Error::MismatchID);
                 }
 
+                let number = if is_goldsource {
+                    (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into()
+                } else {
+                    read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into()
+                };
+
                 if id as u32 & 0x80000000 == 0 {
                     // Uncompressed packet
                     packets.push(PacketFragment {
@@ -243,7 +250,7 @@ impl A2SClient {
                 } else {
                     // BZip2 compressed packet
                     packets.push(PacketFragment {
-                        number: data[OFS_MP_SS_NUMBER],
+                        number,
                         payload: Vec::from(&data[OFS_MP_SS_PAYLOAD_BZ2..]),
                     });
                 }
@@ -336,7 +343,7 @@ impl A2SClient {
 
             // Try to interpret the package as GoldSource
             // Note: this won't work if the packets arrive out of order
-            let (total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
+            let (is_goldsource, total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
                 // ID - long (4 bytes)
                 // Packet number - byte (1 byte):
                 //      high nibble - number of the current packet
@@ -344,7 +351,7 @@ impl A2SClient {
                 let total_packets: usize = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) & 0x0F).into();
                 let number: u8 = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into();
                 let switching_size: usize = self.max_size;
-                (total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
+                (true, total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
             }
             // Seems like a Source packet
             else {
@@ -354,8 +361,8 @@ impl A2SClient {
                 // Size - short (2 bytes)
                 let total_packets: usize = read_buffer_offset!(&data, OFS_MP_SS_TOTAL, u8).into();
                 let number: u8 = read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into();
-                let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
-                (total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
+                let switching_size: usize = (read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16) + OFS_MP_SS_PAYLOAD as u16).into();
+                (false, total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
             };
 
             // Sanity check
@@ -377,9 +384,10 @@ impl A2SClient {
                 payload: Vec::from(&data[ofs_payload + 4..]),
             });
 
+            let mut data: Vec<u8> = Vec::with_capacity(0);
+            data.try_reserve(switching_size)?;
+
             loop {
-                let mut data: Vec<u8> = Vec::with_capacity(0);
-                data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
                 let read = self.socket.recv(&mut data)?;
@@ -394,6 +402,12 @@ impl A2SClient {
                 if packet_id != id {
                     return Err(Error::MismatchID);
                 }
+
+                let number = if is_goldsource {
+                    (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into()
+                } else {
+                    read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into()
+                };
 
                 if id as u32 & 0x80000000 == 0 {
                     // Uncompressed packet
