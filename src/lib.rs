@@ -160,6 +160,11 @@ impl A2SClient {
         let read = future_timeout!(self.timeout, socket.recv(&mut data))?;
         data.truncate(read);
 
+        // Handle when a server responds with nothing
+        if data.len() == 0 {
+            return Err(Error::InvalidResponse);
+        }
+
         let header = read_buffer_offset!(&data, OFS_HEADER, i32);
 
         if header == SINGLE_PACKET {
