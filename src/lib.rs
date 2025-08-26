@@ -167,15 +167,38 @@ impl A2SClient {
 
     #[cfg(feature = "async")]
     async fn send<A: ToSocketAddrs>(&self, payload: &[u8], addr: A) -> Result<Vec<u8>> {
-        future_timeout!(self.timeout, self.socket.send_to(payload, addr))?;
+        // Resolve the address to a concrete SocketAddr for verification
+        use tokio::net::lookup_host;
+        let resolved_addrs: Vec<_> = match lookup_host(addr).await {
+            Ok(addrs) => addrs.collect(),
+            Err(_) => return Err(Error::Other("Failed to resolve address")),
+        };
+        
+        let target_addr = resolved_addrs.first()
+            .ok_or(Error::Other("No addresses resolved"))?;
+        
+        future_timeout!(self.timeout, self.socket.send_to(payload, target_addr))?;
 
         let mut data = vec![0; self.max_size];
 
-        let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
+        // Use recv_from and retry until we get response from the expected server
+        let (read, _response_addr) = loop {
+            let result = future_timeout!(self.timeout, self.socket.recv_from(&mut data))?;
+            
+            // Check if response came from the server we sent to
+            if &result.1 == target_addr {
+                break result;
+            }
+            
+            // If response came from a different server, continue waiting
+            // This handles the race condition where multiple concurrent requests
+            // might receive each other's responses
+        };
+        
         data.truncate(read);
 
         // Handle when a server responds with nothing
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(Error::InvalidResponse);
         }
 
@@ -212,7 +235,14 @@ impl A2SClient {
                 data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
-                let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
+                let (read, _packet_addr) = loop {
+                    let result = future_timeout!(self.timeout, self.socket.recv_from(&mut data))?;
+                    
+                    // Verify multipacket responses come from the same server
+                    if &result.1 == target_addr {
+                        break result;
+                    }
+                };
                 data.truncate(read);
 
                 if data.len() <= 9 {
@@ -296,7 +326,7 @@ impl A2SClient {
         let mut data = Cursor::new(data);
 
         let header = data.read_u8()?;
-        if header != 'A' as u8 {
+        if header != b'A' {
             return Err(Error::InvalidResponse);
         }
 
