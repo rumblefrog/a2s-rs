@@ -133,7 +133,7 @@ impl A2SClient {
     #[cfg(feature = "async")]
     pub async fn new() -> Result<A2SClient> {
         Ok(A2SClient {
-            socket : UdpSocket::bind("0.0.0.0:0").await?,
+            socket: UdpSocket::bind("0.0.0.0:0").await?,
             timeout: Duration::new(5, 0),
             max_size: 1400,
             app_id: 0,
@@ -151,16 +151,20 @@ impl A2SClient {
     }
 
     #[cfg(not(feature = "async"))]
-    pub fn set_timeout(&mut self, timeout : Duration) -> Result<&mut Self> {
-        if timeout == Duration::ZERO {return Err(Error::Other("attempted to set timeout to 0"));}
+    pub fn set_timeout(&mut self, timeout: Duration) -> Result<&mut Self> {
+        if timeout == Duration::ZERO {
+            return Err(Error::Other("attempted to set timeout to 0"));
+        }
         self.socket.set_read_timeout(Some(timeout))?;
         self.socket.set_write_timeout(Some(timeout))?;
         Ok(self)
     }
 
     #[cfg(feature = "async")]
-    pub fn set_timeout(&mut self, timeout : Duration) -> Result<&mut Self> {
-        if timeout == Duration::ZERO {return Err(Error::Other("attempted to set timeout to 0"));}
+    pub fn set_timeout(&mut self, timeout: Duration) -> Result<&mut Self> {
+        if timeout == Duration::ZERO {
+            return Err(Error::Other("attempted to set timeout to 0"));
+        }
         self.timeout = timeout;
         Ok(self)
     }
