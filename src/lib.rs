@@ -174,8 +174,8 @@ impl A2SClient {
         let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
         data.truncate(read);
 
-        // Handle when a server responds with nothing
-        if data.len() == 0 {
+        // Header is a long (4 bytes)
+        if data.len() < 4 {
             return Err(Error::InvalidResponse);
         }
 
