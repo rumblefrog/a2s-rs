@@ -27,6 +27,8 @@ const MULTI_PACKET: i32 = -2;
 const OFS_HEADER: usize = 0;
 const OFS_SP_PAYLOAD: usize = 4;
 const OFS_MP_ID: usize = 4;
+
+// Offsets for Source
 const OFS_MP_SS_TOTAL: usize = 8;
 const OFS_MP_SS_NUMBER: usize = 9;
 const OFS_MP_SS_SIZE: usize = 10;
@@ -35,12 +37,16 @@ const OFS_MP_SS_BZ2_CRC: usize = 16;
 const OFS_MP_SS_PAYLOAD: usize = OFS_MP_SS_BZ2_SIZE;
 const OFS_MP_SS_PAYLOAD_BZ2: usize = OFS_MP_SS_BZ2_CRC + 4;
 
+// Offsets for GoldSource
+const OFS_MP_GS_PACKETNUMBER: usize = 8;
+const OFS_MP_GS_PAYLOAD: usize = 9;
+
 macro_rules! read_buffer_offset {
     ($buf:expr, $offset:expr, i8) => {
-        $buf[$offset].into()
+        $buf[$offset] as i8
     };
     ($buf:expr, $offset:expr, u8) => {
-        $buf[$offset].into()
+        $buf[$offset] as u8
     };
     ($buf:expr, $offset:expr, i16) => {
         i16::from_le_bytes([$buf[$offset], $buf[$offset + 1]])
@@ -184,32 +190,55 @@ impl A2SClient {
         if header == SINGLE_PACKET {
             Ok(data[OFS_SP_PAYLOAD..].to_vec())
         } else if header == MULTI_PACKET {
-            // ID - long (4 bytes)
-            // Total - byte (1 byte)
-            // Number - byte (1 byte)
-            // Size - short (2 bytes)
-
             let id = read_buffer_offset!(&data, OFS_MP_ID, i32);
-            let total_packets: usize = data[OFS_MP_SS_TOTAL].into();
-            let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
+
+            // Try to interpret the package as GoldSource
+            // Note: this won't work if the packets arrive out of order
+            let (is_goldsource, total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
+                // ID - long (4 bytes)
+                // Packet number - byte (1 byte):
+                //      high nibble - number of the current packet
+                //      low nibble  - total number of packets
+                let total_packets: usize = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) & 0x0F).into();
+                let number: u8 = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into();
+                let switching_size: usize = self.max_size;
+                (true, total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
+            }
+            // Seems like a Source packet
+            else {
+                // ID - long (4 bytes)
+                // Total - byte (1 byte)
+                // Number - byte (1 byte)
+                // Size - short (2 bytes)
+                let total_packets: usize = read_buffer_offset!(&data, OFS_MP_SS_TOTAL, u8).into();
+                let number: u8 = read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into();
+                let switching_size: usize = (read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16) + OFS_MP_SS_PAYLOAD as u16).into();
+                (false, total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
+            };
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
                 return Err(Error::InvalidResponse);
             }
 
+            if number != 0 {
+                // Packets out of order!
+                return Err(Error::InvalidResponse);
+            }
+
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
             packets.try_reserve(total_packets)?;
             packets.push(PacketFragment {
-                number: data[OFS_MP_SS_NUMBER],
+                number,
                 // The first packet seems to include a single packet header (0xFFFFFFFF) for some
                 // reason, so we'd rather skip that (hence +4)
-                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD + 4..]),
+                payload: Vec::from(&data[ofs_payload + 4..]),
             });
 
+            let mut data: Vec<u8> = Vec::with_capacity(0);
+            data.try_reserve(switching_size)?;
+
             loop {
-                let mut data: Vec<u8> = Vec::with_capacity(0);
-                data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
                 let read = future_timeout!(self.timeout, self.socket.recv(&mut data))?;
@@ -225,16 +254,22 @@ impl A2SClient {
                     return Err(Error::MismatchID);
                 }
 
+                let number = if is_goldsource {
+                    (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into()
+                } else {
+                    read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into()
+                };
+
                 if id as u32 & 0x80000000 == 0 {
                     // Uncompressed packet
                     packets.push(PacketFragment {
-                        number: data[OFS_MP_SS_NUMBER],
-                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
+                        number,
+                        payload: Vec::from(&data[ofs_payload..]),
                     });
                 } else {
                     // BZip2 compressed packet
                     packets.push(PacketFragment {
-                        number: data[OFS_MP_SS_NUMBER],
+                        number,
                         payload: Vec::from(&data[OFS_MP_SS_PAYLOAD_BZ2..]),
                     });
                 }
@@ -323,32 +358,55 @@ impl A2SClient {
         if header == SINGLE_PACKET {
             Ok(data[OFS_SP_PAYLOAD..].to_vec())
         } else if header == MULTI_PACKET {
-            // ID - long (4 bytes)
-            // Total - byte (1 byte)
-            // Number - byte (1 byte)
-            // Size - short (2 bytes)
-
             let id = read_buffer_offset!(&data, OFS_MP_ID, i32);
-            let total_packets: usize = data[OFS_MP_SS_TOTAL].into();
-            let switching_size: usize = read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16).into();
+
+            // Try to interpret the package as GoldSource
+            // Note: this won't work if the packets arrive out of order
+            let (is_goldsource, total_packets, number, switching_size, ofs_payload) = if read_buffer_offset!(&data, OFS_MP_GS_PAYLOAD, i32) == SINGLE_PACKET {
+                // ID - long (4 bytes)
+                // Packet number - byte (1 byte):
+                //      high nibble - number of the current packet
+                //      low nibble  - total number of packets
+                let total_packets: usize = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) & 0x0F).into();
+                let number: u8 = (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into();
+                let switching_size: usize = self.max_size;
+                (true, total_packets, number, switching_size, OFS_MP_GS_PAYLOAD)
+            }
+            // Seems like a Source packet
+            else {
+                // ID - long (4 bytes)
+                // Total - byte (1 byte)
+                // Number - byte (1 byte)
+                // Size - short (2 bytes)
+                let total_packets: usize = read_buffer_offset!(&data, OFS_MP_SS_TOTAL, u8).into();
+                let number: u8 = read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into();
+                let switching_size: usize = (read_buffer_offset!(&data, OFS_MP_SS_SIZE, u16) + OFS_MP_SS_PAYLOAD as u16).into();
+                (false, total_packets, number, switching_size, OFS_MP_SS_PAYLOAD)
+            };
 
             // Sanity check
             if (switching_size > self.max_size) || (total_packets > 32) {
                 return Err(Error::InvalidResponse);
             }
 
+            if number != 0 {
+                // Packets out of order!
+                return Err(Error::InvalidResponse);
+            }
+
             let mut packets: Vec<PacketFragment> = Vec::with_capacity(0);
             packets.try_reserve(total_packets)?;
             packets.push(PacketFragment {
-                number: data[OFS_MP_SS_NUMBER],
+                number,
                 // The first packet seems to include a single packet header (0xFFFFFFFF) for some
                 // reason, so we'd rather skip that (hence +4)
-                payload: Vec::from(&data[OFS_MP_SS_PAYLOAD + 4..]),
+                payload: Vec::from(&data[ofs_payload + 4..]),
             });
 
+            let mut data: Vec<u8> = Vec::with_capacity(0);
+            data.try_reserve(switching_size)?;
+
             loop {
-                let mut data: Vec<u8> = Vec::with_capacity(0);
-                data.try_reserve(switching_size)?;
                 data.resize(switching_size, 0);
 
                 let read = self.socket.recv(&mut data)?;
@@ -364,11 +422,17 @@ impl A2SClient {
                     return Err(Error::MismatchID);
                 }
 
+                let number = if is_goldsource {
+                    (read_buffer_offset!(&data, OFS_MP_GS_PACKETNUMBER, u8) >> 4).into()
+                } else {
+                    read_buffer_offset!(&data, OFS_MP_SS_NUMBER, u8).into()
+                };
+
                 if id as u32 & 0x80000000 == 0 {
                     // Uncompressed packet
                     packets.push(PacketFragment {
-                        number: data[OFS_MP_SS_NUMBER],
-                        payload: Vec::from(&data[OFS_MP_SS_PAYLOAD..]),
+                        number,
+                        payload: Vec::from(&data[ofs_payload..]),
                     });
                 } else {
                     // BZip2 compressed packet

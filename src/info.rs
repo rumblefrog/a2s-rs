@@ -90,7 +90,7 @@ pub struct SourceTVInfo {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[repr(u8)]
 pub enum ServerType {
@@ -111,7 +111,7 @@ impl TryFrom<u8> for ServerType {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[repr(u8)]
 pub enum ServerOS {
